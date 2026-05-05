@@ -64,7 +64,7 @@ def fig_to_base64(fig):
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
 
-def style_axes(ax, labels):
+def style_axes(ax, labels, n_series=1):
     ax.set_facecolor("white")
     ax.spines["top"].set_visible(False)
     ax.spines["right"].set_visible(False)
@@ -72,33 +72,33 @@ def style_axes(ax, labels):
     ax.spines["bottom"].set_color("#cccccc")
     ax.tick_params(axis="both", labelsize=8, colors="#444444")
     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
-    ax.grid(axis="y", color="#eeeeee", linewidth=0.8)
+    ax.grid(axis="y", color="#eeeeee", linewidth=0.8, zorder=0)
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=0, fontsize=7.5)
+    # Padding so lines never touch the edges or overlap the legend
+    ax.set_xlim(-0.5, len(labels) - 0.5)
+    top_margin = 0.22 if n_series > 1 else 0.12
+    ax.margins(y=top_margin)
+    ax.set_axisbelow(True)
 
 
-def make_line_chart(labels, series, fill=False, height=2.2, with_labels=True):
+def make_line_chart(labels, series, fill=False, height=2.2, with_labels=False):
     """series: list of (label, values, color, linestyle)"""
     fig, ax = plt.subplots(figsize=(10, height))
     x = list(range(len(labels)))
 
     for label, values, color, ls in series:
         ax.plot(x, values, label=label, color=color, linestyle=ls,
-                linewidth=2, marker="o", markersize=4)
-        if with_labels and len(series) <= 2:
-            for xi, yi in zip(x, values):
-                ax.annotate(f"{int(yi):,}", (xi, yi),
-                            textcoords="offset points", xytext=(0, 6),
-                            ha="center", fontsize=7, color="#333333")
+                linewidth=2, marker="o", markersize=4, zorder=3, clip_on=True)
 
     if fill and len(series) == 1:
-        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.18)
+        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.18, zorder=2)
 
-    style_axes(ax, labels)
+    style_axes(ax, labels, n_series=len(series))
     if len(series) > 1:
-        ax.legend(loc="upper right", frameon=False, fontsize=8.5,
-                  ncol=min(len(series), 4))
-    fig.tight_layout()
+        ax.legend(loc="upper right", frameon=True, framealpha=0.9,
+                  edgecolor="#dddddd", fontsize=8.5, ncol=min(len(series), 4))
+    fig.tight_layout(pad=0.4)
     return fig_to_base64(fig)
 
 
