@@ -118,19 +118,20 @@ def generate_report(input_path, output_path=None):
 
     # Charts
     img_enrollments = make_line_chart(
-        labels, [("Enrollments", enrollments, C_FILL, "-")], fill=True)
+        labels, [("Enrollments", enrollments, C_FILL, "-")],
+        fill=True, with_labels=False)
 
     img_transactions = make_line_chart(
         labels,
         [("Loyalty Sale Transactions",     loy_sales,    C_BLUE,      "-"),
          ("Non-Loyalty Sale Transactions", nonloy_sales, C_LIGHTBLUE, "-")],
-        with_labels=True)
+        with_labels=False)
 
     img_returns = make_line_chart(
         labels,
         [("Loyalty Return Transactions",     loy_returns,    C_RED,    "-"),
          ("Non-Loyalty Return Transactions", nonloy_returns, C_ORANGE, "-")],
-        with_labels=True)
+        with_labels=False)
 
     img_points = make_line_chart(
         labels,
@@ -144,11 +145,11 @@ def generate_report(input_path, output_path=None):
         labels,
         [("Certificates Issued",   certs_issued,   C_GREEN, "-"),
          ("Certificates Redeemed", certs_redeemed, C_RED,   "-")],
-        with_labels=True)
+        with_labels=False)
 
     img_tier = make_line_chart(
         labels, [("Tier Upgrades", tier_up, C_PURPLE, "-")],
-        fill=True, with_labels=True)
+        fill=True, with_labels=False)
 
     # Daily table
     t = df.sum(numeric_only=True)
