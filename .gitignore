@@ -3,7 +3,7 @@ preview_*.png
 report_preview.png
 
 # Generated reports (only the template/script belongs in git)
-*_report.html
+# *_report.html
 
 # Python
 __pycache__/
