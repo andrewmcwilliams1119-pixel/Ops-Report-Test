@@ -1,13 +1,29 @@
 #!/usr/bin/env python3
 """
-Operations Report Generator
-Usage: python generate_report.py <input_file.csv or input_file.xlsx> [output_file.html]
+ANN Daily Operational Report Generator
+Usage: python generate_report.py <input_file.csv|.xlsx> [output.html]
 """
 
 import pandas as pd
+import matplotlib
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+from matplotlib.ticker import FuncFormatter
+import io
+import base64
 import sys
 import os
-from datetime import datetime
+
+REPORT_TITLE = "ANN Daily Operational Report"
+
+# Consistent palette
+C_BLUE      = "#1f4e79"
+C_LIGHTBLUE = "#7fb6ec"
+C_GREEN     = "#5cb85c"
+C_RED       = "#e25c5c"
+C_ORANGE    = "#f0ad4e"
+C_PURPLE    = "#9b6dd0"
+C_FILL      = "#4a90e2"
 
 
 def fmt_int(n):
@@ -22,14 +38,6 @@ def fmt_currency(n):
     return f"${float(n):,.2f}"
 
 
-def fmt_pts(n):
-    """Format points — always show sign for redeemed/expired/forfeited."""
-    if pd.isna(n):
-        return "0"
-    val = int(n)
-    return f"{val:,}"
-
-
 def load_data(path):
     ext = os.path.splitext(path)[1].lower()
     if ext in (".xlsx", ".xls"):
@@ -41,555 +49,301 @@ def load_data(path):
     return df
 
 
-def build_daily_rows(df):
-    rows = ""
-    for _, r in df.iterrows():
-        rows += f"""
-        <tr>
-            <td>{r['Report Date'].strftime('%-m/%-d/%Y')}</td>
-            <td>{fmt_int(r['Enrollments'])}</td>
-            <td>{fmt_int(r['Loyalty Sale Transactions'])}</td>
-            <td>{fmt_int(r['Loyalty Return Transactions'])}</td>
-            <td>{fmt_int(r['Non-Loyalty Sale Transactions'])}</td>
-            <td>{fmt_int(r['Non-Loyalty Return Transactions'])}</td>
-            <td>{fmt_pts(r['Base Points Earned'])}</td>
-            <td>{fmt_pts(r['Bonus Points Earned'])}</td>
-            <td>{fmt_pts(r['Adjusted Points Earned'])}</td>
-            <td>{fmt_pts(r['Base Points Redeemed'])}</td>
-            <td>{fmt_pts(r['Bonus Points Redeemed'])}</td>
-            <td>{fmt_pts(r['Adjusted Points Redeemed'])}</td>
-            <td>{fmt_pts(r['Base Points Expired'])}</td>
-            <td>{fmt_pts(r['Bonus Points Expired'])}</td>
-            <td>{fmt_pts(r['Adjusted Points Expired'])}</td>
-            <td>{fmt_pts(r['Base Points Forfeited'])}</td>
-            <td>{fmt_pts(r['Bonus Points Forfeited'])}</td>
-            <td>{fmt_pts(r['Adjusted Points Forfeited'])}</td>
-            <td>{fmt_int(r['Loyalty Certificates Issued'])}</td>
-            <td>{fmt_currency(r['Loyalty Certificates Issued Amount'])}</td>
-            <td>{fmt_int(r['Loyalty Certificates Redeemed'])}</td>
-            <td>{fmt_currency(r['Loyalty Certificates Redeemed Amount'])}</td>
-            <td>{fmt_currency(r['Daily $20 Birthday Certificate'])}</td>
-            <td>{fmt_int(r['Tier Upgrades'])}</td>
-            <td>{fmt_int(r['Tier Downgrades'])}</td>
-        </tr>"""
-    return rows
+def fig_to_base64(fig):
+    buf = io.BytesIO()
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight",
+                facecolor="white")
+    plt.close(fig)
+    return base64.b64encode(buf.getvalue()).decode("ascii")
+
+
+def style_axes(ax, labels):
+    ax.set_facecolor("white")
+    ax.spines["top"].set_visible(False)
+    ax.spines["right"].set_visible(False)
+    ax.spines["left"].set_color("#cccccc")
+    ax.spines["bottom"].set_color("#cccccc")
+    ax.tick_params(axis="both", labelsize=8, colors="#444444")
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+    ax.grid(axis="y", color="#eeeeee", linewidth=0.8)
+    ax.set_xticks(range(len(labels)))
+    ax.set_xticklabels(labels, rotation=0, fontsize=7.5)
+
+
+def make_line_chart(labels, series, fill=False, height=2.2, with_labels=True):
+    """series: list of (label, values, color, linestyle)"""
+    fig, ax = plt.subplots(figsize=(10, height))
+    x = list(range(len(labels)))
+
+    for label, values, color, ls in series:
+        ax.plot(x, values, label=label, color=color, linestyle=ls,
+                linewidth=2, marker="o", markersize=4)
+        if with_labels and len(series) <= 2:
+            for xi, yi in zip(x, values):
+                ax.annotate(f"{int(yi):,}", (xi, yi),
+                            textcoords="offset points", xytext=(0, 6),
+                            ha="center", fontsize=7, color="#333333")
+
+    if fill and len(series) == 1:
+        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.18)
+
+    style_axes(ax, labels)
+    if len(series) > 1:
+        ax.legend(loc="upper right", frameon=False, fontsize=8.5,
+                  ncol=min(len(series), 4))
+    fig.tight_layout()
+    return fig_to_base64(fig)
 
 
 def generate_report(input_path, output_path=None):
     df = load_data(input_path)
 
+    labels = [d.strftime("%-m/%-d/%Y") for d in df["Report Date"]]
+    end_date = df["Report Date"].max()
+    date_str = end_date.strftime("%A, %m/%d/%Y")
+
+    # Series
+    enrollments    = df["Enrollments"].astype(int).tolist()
+    loy_sales      = df["Loyalty Sale Transactions"].astype(int).tolist()
+    nonloy_sales   = df["Non-Loyalty Sale Transactions"].astype(int).tolist()
+    loy_returns    = df["Loyalty Return Transactions"].astype(int).tolist()
+    nonloy_returns = df["Non-Loyalty Return Transactions"].astype(int).tolist()
+    base_earned    = df["Base Points Earned"].astype(int).tolist()
+    bonus_earned   = df["Bonus Points Earned"].astype(int).tolist()
+    base_redeemed  = [-int(x) for x in df["Base Points Redeemed"]]
+    bonus_redeemed = [-int(x) for x in df["Bonus Points Redeemed"]]
+    certs_issued   = df["Loyalty Certificates Issued"].astype(int).tolist()
+    certs_redeemed = df["Loyalty Certificates Redeemed"].astype(int).tolist()
+    tier_up        = df["Tier Upgrades"].astype(int).tolist()
+
+    # Charts
+    img_enrollments = make_line_chart(
+        labels, [("Enrollments", enrollments, C_FILL, "-")], fill=True)
+
+    img_transactions = make_line_chart(
+        labels,
+        [("Loyalty Sale Transactions",     loy_sales,    C_BLUE,      "-"),
+         ("Non-Loyalty Sale Transactions", nonloy_sales, C_LIGHTBLUE, "-")],
+        with_labels=True)
+
+    img_returns = make_line_chart(
+        labels,
+        [("Loyalty Return Transactions",     loy_returns,    C_RED,    "-"),
+         ("Non-Loyalty Return Transactions", nonloy_returns, C_ORANGE, "-")],
+        with_labels=True)
+
+    img_points = make_line_chart(
+        labels,
+        [("Base Points Earned",    base_earned,    C_GREEN,  "-"),
+         ("Bonus Points Earned",   bonus_earned,   C_BLUE,   "-"),
+         ("Base Points Redeemed",  base_redeemed,  C_RED,    "--"),
+         ("Bonus Points Redeemed", bonus_redeemed, C_PURPLE, "--")],
+        height=2.6, with_labels=False)
+
+    img_certs = make_line_chart(
+        labels,
+        [("Certificates Issued",   certs_issued,   C_GREEN, "-"),
+         ("Certificates Redeemed", certs_redeemed, C_RED,   "-")],
+        with_labels=True)
+
+    img_tier = make_line_chart(
+        labels, [("Tier Upgrades", tier_up, C_PURPLE, "-")],
+        fill=True, with_labels=True)
+
+    # Daily table
     t = df.sum(numeric_only=True)
-    avg = df.mean(numeric_only=True)
-
-    start = df["Report Date"].min().strftime("%B %d, %Y")
-    end = df["Report Date"].max().strftime("%B %d, %Y")
-    num_days = len(df)
-    generated = datetime.now().strftime("%B %d, %Y at %I:%M %p")
-
-    net_loyalty_txn = int(t["Loyalty Sale Transactions"]) + int(t["Loyalty Return Transactions"])
-    net_nonloyalty_txn = int(t["Non-Loyalty Sale Transactions"]) + int(t["Non-Loyalty Return Transactions"])
-
-    daily_rows = build_daily_rows(df)
+    rows_html = ""
+    for _, r in df.iterrows():
+        rows_html += f"""
+        <tr>
+          <td>{r['Report Date'].strftime('%-m/%-d/%Y')}</td>
+          <td>{fmt_int(r['Enrollments'])}</td>
+          <td>{fmt_int(r['Loyalty Sale Transactions'])}</td>
+          <td>{fmt_int(r['Loyalty Return Transactions'])}</td>
+          <td>{fmt_int(r['Non-Loyalty Sale Transactions'])}</td>
+          <td>{fmt_int(r['Non-Loyalty Return Transactions'])}</td>
+          <td>{fmt_int(r['Base Points Earned'] + r['Bonus Points Earned'] + r['Adjusted Points Earned'])}</td>
+          <td>{fmt_int(-(r['Base Points Redeemed'] + r['Bonus Points Redeemed'] + r['Adjusted Points Redeemed']))}</td>
+          <td>{fmt_int(r['Loyalty Certificates Issued'])}</td>
+          <td>{fmt_currency(r['Loyalty Certificates Issued Amount'])}</td>
+          <td>{fmt_int(r['Loyalty Certificates Redeemed'])}</td>
+          <td>{fmt_currency(r['Loyalty Certificates Redeemed Amount'])}</td>
+          <td>{fmt_int(r['Tier Upgrades'])}</td>
+        </tr>"""
 
     html = f"""<!DOCTYPE html>
 <html lang="en">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Operations Report | {start} &ndash; {end}</title>
+<title>{REPORT_TITLE} | {date_str}</title>
 <style>
   * {{ box-sizing: border-box; margin: 0; padding: 0; }}
-
   body {{
     font-family: 'Segoe UI', Arial, sans-serif;
-    font-size: 13px;
-    background: #f0f2f5;
-    color: #1a1a2e;
+    font-size: 12px;
+    background: #ffffff;
+    color: #222;
+    padding: 0 24px 40px;
   }}
-
-  /* ── HEADER ── */
   .report-header {{
-    background: #1a1a2e;
-    color: #ffffff;
-    padding: 28px 40px 22px;
-    display: flex;
-    justify-content: space-between;
-    align-items: flex-end;
+    background: #2d2d2d;
+    padding: 14px 0 10px;
+    text-align: center;
+    margin: 0 -24px 18px;
   }}
   .report-header h1 {{
-    font-size: 26px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-    text-transform: uppercase;
-  }}
-  .report-header .subtitle {{
-    font-size: 14px;
-    color: #a0aec0;
-    margin-top: 4px;
-  }}
-  .report-header .meta {{
-    text-align: right;
-    font-size: 12px;
-    color: #a0aec0;
-    line-height: 1.8;
-  }}
-  .report-header .meta strong {{
     color: #ffffff;
-  }}
-
-  /* ── CONTENT ── */
-  .content {{ padding: 30px 40px 50px; }}
-
-  /* ── SECTION TITLES ── */
-  .section-title {{
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 1.2px;
-    color: #718096;
-    margin: 28px 0 12px;
-    padding-bottom: 6px;
-    border-bottom: 2px solid #e2e8f0;
-  }}
-
-  /* ── KPI CARDS ── */
-  .kpi-grid {{
-    display: grid;
-    gap: 14px;
-  }}
-  .kpi-grid-3 {{ grid-template-columns: repeat(3, 1fr); }}
-  .kpi-grid-4 {{ grid-template-columns: repeat(4, 1fr); }}
-  .kpi-grid-5 {{ grid-template-columns: repeat(5, 1fr); }}
-  .kpi-grid-6 {{ grid-template-columns: repeat(6, 1fr); }}
-
-  .kpi-card {{
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 18px 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    border-left: 4px solid #4a90d9;
-  }}
-  .kpi-card.green  {{ border-left-color: #38a169; }}
-  .kpi-card.red    {{ border-left-color: #e53e3e; }}
-  .kpi-card.purple {{ border-left-color: #805ad5; }}
-  .kpi-card.orange {{ border-left-color: #dd6b20; }}
-  .kpi-card.teal   {{ border-left-color: #319795; }}
-  .kpi-card.gray   {{ border-left-color: #718096; }}
-
-  .kpi-label {{
-    font-size: 10.5px;
-    font-weight: 600;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #718096;
-    margin-bottom: 6px;
-  }}
-  .kpi-value {{
-    font-size: 22px;
-    font-weight: 700;
-    color: #1a1a2e;
-    line-height: 1.1;
-  }}
-  .kpi-sub {{
-    font-size: 11px;
-    color: #a0aec0;
-    margin-top: 4px;
-  }}
-
-  /* Points cards: show base / bonus / adjusted in one card */
-  .pts-card {{
-    background: #ffffff;
-    border-radius: 8px;
-    padding: 18px 20px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    border-left: 4px solid #4a90d9;
-  }}
-  .pts-card.green  {{ border-left-color: #38a169; }}
-  .pts-card.red    {{ border-left-color: #e53e3e; }}
-  .pts-card.orange {{ border-left-color: #dd6b20; }}
-  .pts-card.gray   {{ border-left-color: #718096; }}
-
-  .pts-title {{
-    font-size: 11px;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.8px;
-    color: #4a5568;
-    margin-bottom: 12px;
-    padding-bottom: 8px;
-    border-bottom: 1px solid #e2e8f0;
-  }}
-  .pts-row {{
-    display: flex;
-    justify-content: space-between;
-    margin-bottom: 6px;
-  }}
-  .pts-row-label {{
-    font-size: 11.5px;
-    color: #718096;
-  }}
-  .pts-row-value {{
-    font-size: 12px;
-    font-weight: 600;
-    color: #1a1a2e;
-  }}
-  .pts-row.adjusted .pts-row-label {{
-    color: #1a1a2e;
+    font-size: 20px;
     font-weight: 700;
   }}
-  .pts-row.adjusted .pts-row-value {{
+  .report-header .date {{
+    color: #4a90e2;
+    font-style: italic;
     font-size: 13px;
-    color: #1a1a2e;
+    margin-top: 2px;
   }}
-
-  /* ── CERT CARD ── */
-  .cert-grid {{
-    display: grid;
-    grid-template-columns: repeat(4, 1fr);
-    gap: 14px;
-  }}
-
-  /* ── DAILY TABLE ── */
-  .table-wrapper {{
-    overflow-x: auto;
+  .section {{
+    border: 1px solid #d0d0d0;
+    margin-bottom: 14px;
     background: #ffffff;
-    border-radius: 8px;
-    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
-    margin-top: 4px;
+  }}
+  .section-header {{
+    background: #4a4a4a;
+    color: #ffffff;
+    font-weight: 700;
+    font-size: 12px;
+    padding: 6px 12px;
+  }}
+  .section-body {{
+    padding: 12px;
+    text-align: center;
+  }}
+  .section-body img {{
+    max-width: 100%;
+    height: auto;
+    display: block;
+    margin: 0 auto;
   }}
   table {{
     width: 100%;
     border-collapse: collapse;
-    font-size: 11.5px;
-  }}
-  thead tr {{
-    background: #1a1a2e;
-    color: #ffffff;
+    font-size: 11px;
   }}
   thead th {{
-    padding: 10px 10px;
+    background: #4a4a4a;
+    color: #ffffff;
     text-align: right;
+    padding: 6px 8px;
     font-weight: 600;
-    font-size: 10.5px;
-    text-transform: uppercase;
-    letter-spacing: 0.5px;
     white-space: nowrap;
   }}
   thead th:first-child {{ text-align: left; }}
-  thead tr.subhead {{
-    background: #2d3748;
-    color: #a0aec0;
-    font-size: 9.5px;
-  }}
-  thead tr.subhead th {{ padding: 4px 10px 6px; }}
-
-  tbody tr {{ border-bottom: 1px solid #e2e8f0; }}
-  tbody tr:nth-child(even) {{ background: #f7fafc; }}
-  tbody tr:hover {{ background: #ebf4ff; }}
   tbody td {{
-    padding: 8px 10px;
+    padding: 5px 8px;
     text-align: right;
+    border-bottom: 1px solid #eee;
     white-space: nowrap;
-    color: #2d3748;
   }}
-  tbody td:first-child {{
-    text-align: left;
-    font-weight: 600;
-    color: #1a1a2e;
-  }}
-
-  tfoot tr {{ background: #2d3748; color: #ffffff; font-weight: 700; }}
+  tbody td:first-child {{ text-align: left; font-weight: 600; }}
+  tbody tr:nth-child(even) {{ background: #f7f7f7; }}
   tfoot td {{
-    padding: 9px 10px;
+    background: #2d2d2d;
+    color: #ffffff;
+    padding: 7px 8px;
     text-align: right;
+    font-weight: 700;
     white-space: nowrap;
-    font-size: 12px;
   }}
   tfoot td:first-child {{ text-align: left; }}
-
-  /* column group backgrounds */
-  .col-enroll  {{ border-left: 3px solid #4a90d9; }}
-  .col-loy     {{ border-left: 3px solid #38a169; }}
-  .col-nonloy  {{ border-left: 3px solid #805ad5; }}
-  .col-earned  {{ border-left: 3px solid #38a169; }}
-  .col-redeem  {{ border-left: 3px solid #e53e3e; }}
-  .col-expire  {{ border-left: 3px solid #dd6b20; }}
-  .col-forfeit {{ border-left: 3px solid #718096; }}
-  .col-cert    {{ border-left: 3px solid #319795; }}
-  .col-tier    {{ border-left: 3px solid #4a90d9; }}
-
-  /* ── PRINT ── */
   @media print {{
-    body {{ background: white; font-size: 11px; }}
-    .content {{ padding: 20px; }}
-    .report-header {{ padding: 16px 20px; }}
-    .kpi-value {{ font-size: 18px; }}
-    .table-wrapper {{ box-shadow: none; }}
-    thead tr {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
-    tfoot tr  {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
-    .kpi-card, .pts-card {{ -webkit-print-color-adjust: exact; print-color-adjust: exact; }}
+    body {{ padding: 0 12px 20px; }}
+    .section {{ page-break-inside: avoid; }}
+    .report-header, thead th, tfoot td, .section-header {{
+      -webkit-print-color-adjust: exact; print-color-adjust: exact;
+    }}
   }}
 </style>
 </head>
 <body>
 
-<!-- ════════════════════════════════════════════
-     HEADER
-════════════════════════════════════════════ -->
 <div class="report-header">
-  <div>
-    <h1>Operations Report</h1>
-    <div class="subtitle">{start} &ndash; {end} &nbsp;|&nbsp; {num_days} Days</div>
-  </div>
-  <div class="meta">
-    <strong>Generated</strong><br>{generated}
+  <h1>{REPORT_TITLE}</h1>
+  <div class="date">{date_str}</div>
+</div>
+
+<div class="section">
+  <div class="section-header">Enrollments</div>
+  <div class="section-body"><img src="data:image/png;base64,{img_enrollments}"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Transactions</div>
+  <div class="section-body"><img src="data:image/png;base64,{img_transactions}"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Return Transactions</div>
+  <div class="section-body"><img src="data:image/png;base64,{img_returns}"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Points Activity (Earned vs Redeemed)</div>
+  <div class="section-body"><img src="data:image/png;base64,{img_points}"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Loyalty Certificates</div>
+  <div class="section-body"><img src="data:image/png;base64,{img_certs}"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Tier Upgrades</div>
+  <div class="section-body"><img src="data:image/png;base64,{img_tier}"></div>
+</div>
+
+<div class="section">
+  <div class="section-header">Daily Breakdown</div>
+  <div class="section-body" style="padding:0;">
+    <table>
+      <thead>
+        <tr>
+          <th>Date</th>
+          <th>Enroll</th>
+          <th>Loy Sales</th>
+          <th>Loy Returns</th>
+          <th>Non-Loy Sales</th>
+          <th>Non-Loy Returns</th>
+          <th>Pts Earned</th>
+          <th>Pts Redeemed</th>
+          <th>Certs Issued</th>
+          <th>Issued $</th>
+          <th>Certs Redeemed</th>
+          <th>Redeemed $</th>
+          <th>Tier Up</th>
+        </tr>
+      </thead>
+      <tbody>{rows_html}</tbody>
+      <tfoot>
+        <tr>
+          <td>TOTAL</td>
+          <td>{fmt_int(t['Enrollments'])}</td>
+          <td>{fmt_int(t['Loyalty Sale Transactions'])}</td>
+          <td>{fmt_int(t['Loyalty Return Transactions'])}</td>
+          <td>{fmt_int(t['Non-Loyalty Sale Transactions'])}</td>
+          <td>{fmt_int(t['Non-Loyalty Return Transactions'])}</td>
+          <td>{fmt_int(t['Base Points Earned'] + t['Bonus Points Earned'] + t['Adjusted Points Earned'])}</td>
+          <td>{fmt_int(-(t['Base Points Redeemed'] + t['Bonus Points Redeemed'] + t['Adjusted Points Redeemed']))}</td>
+          <td>{fmt_int(t['Loyalty Certificates Issued'])}</td>
+          <td>{fmt_currency(t['Loyalty Certificates Issued Amount'])}</td>
+          <td>{fmt_int(t['Loyalty Certificates Redeemed'])}</td>
+          <td>{fmt_currency(t['Loyalty Certificates Redeemed Amount'])}</td>
+          <td>{fmt_int(t['Tier Upgrades'])}</td>
+        </tr>
+      </tfoot>
+    </table>
   </div>
 </div>
 
-<div class="content">
-
-<!-- ════════════════════════════════════════════
-     SECTION 1 — ENROLLMENTS & TRANSACTIONS
-════════════════════════════════════════════ -->
-<div class="section-title">Enrollments &amp; Transactions</div>
-<div class="kpi-grid kpi-grid-5">
-
-  <div class="kpi-card">
-    <div class="kpi-label">Total Enrollments</div>
-    <div class="kpi-value">{fmt_int(t['Enrollments'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Enrollments'])} / day</div>
-  </div>
-
-  <div class="kpi-card green">
-    <div class="kpi-label">Loyalty Sale Transactions</div>
-    <div class="kpi-value">{fmt_int(t['Loyalty Sale Transactions'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Loyalty Sale Transactions'])} / day</div>
-  </div>
-
-  <div class="kpi-card red">
-    <div class="kpi-label">Loyalty Return Transactions</div>
-    <div class="kpi-value">{fmt_int(t['Loyalty Return Transactions'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Loyalty Return Transactions'])} / day</div>
-  </div>
-
-  <div class="kpi-card purple">
-    <div class="kpi-label">Non-Loyalty Sale Transactions</div>
-    <div class="kpi-value">{fmt_int(t['Non-Loyalty Sale Transactions'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Non-Loyalty Sale Transactions'])} / day</div>
-  </div>
-
-  <div class="kpi-card purple">
-    <div class="kpi-label">Non-Loyalty Return Transactions</div>
-    <div class="kpi-value">{fmt_int(t['Non-Loyalty Return Transactions'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Non-Loyalty Return Transactions'])} / day</div>
-  </div>
-
-</div>
-
-<!-- ════════════════════════════════════════════
-     SECTION 2 — POINTS ACTIVITY
-════════════════════════════════════════════ -->
-<div class="section-title">Points Activity</div>
-<div class="kpi-grid kpi-grid-4">
-
-  <!-- EARNED -->
-  <div class="pts-card green">
-    <div class="pts-title">Points Earned</div>
-    <div class="pts-row">
-      <span class="pts-row-label">Base</span>
-      <span class="pts-row-value">{fmt_pts(t['Base Points Earned'])}</span>
-    </div>
-    <div class="pts-row">
-      <span class="pts-row-label">Bonus</span>
-      <span class="pts-row-value">{fmt_pts(t['Bonus Points Earned'])}</span>
-    </div>
-    <div class="pts-row adjusted">
-      <span class="pts-row-label">Adjusted</span>
-      <span class="pts-row-value">{fmt_pts(t['Adjusted Points Earned'])}</span>
-    </div>
-  </div>
-
-  <!-- REDEEMED -->
-  <div class="pts-card red">
-    <div class="pts-title">Points Redeemed</div>
-    <div class="pts-row">
-      <span class="pts-row-label">Base</span>
-      <span class="pts-row-value">{fmt_pts(t['Base Points Redeemed'])}</span>
-    </div>
-    <div class="pts-row">
-      <span class="pts-row-label">Bonus</span>
-      <span class="pts-row-value">{fmt_pts(t['Bonus Points Redeemed'])}</span>
-    </div>
-    <div class="pts-row adjusted">
-      <span class="pts-row-label">Adjusted</span>
-      <span class="pts-row-value">{fmt_pts(t['Adjusted Points Redeemed'])}</span>
-    </div>
-  </div>
-
-  <!-- EXPIRED -->
-  <div class="pts-card orange">
-    <div class="pts-title">Points Expired</div>
-    <div class="pts-row">
-      <span class="pts-row-label">Base</span>
-      <span class="pts-row-value">{fmt_pts(t['Base Points Expired'])}</span>
-    </div>
-    <div class="pts-row">
-      <span class="pts-row-label">Bonus</span>
-      <span class="pts-row-value">{fmt_pts(t['Bonus Points Expired'])}</span>
-    </div>
-    <div class="pts-row adjusted">
-      <span class="pts-row-label">Adjusted</span>
-      <span class="pts-row-value">{fmt_pts(t['Adjusted Points Expired'])}</span>
-    </div>
-  </div>
-
-  <!-- FORFEITED -->
-  <div class="pts-card gray">
-    <div class="pts-title">Points Forfeited</div>
-    <div class="pts-row">
-      <span class="pts-row-label">Base</span>
-      <span class="pts-row-value">{fmt_pts(t['Base Points Forfeited'])}</span>
-    </div>
-    <div class="pts-row">
-      <span class="pts-row-label">Bonus</span>
-      <span class="pts-row-value">{fmt_pts(t['Bonus Points Forfeited'])}</span>
-    </div>
-    <div class="pts-row adjusted">
-      <span class="pts-row-label">Adjusted</span>
-      <span class="pts-row-value">{fmt_pts(t['Adjusted Points Forfeited'])}</span>
-    </div>
-  </div>
-
-</div>
-
-<!-- ════════════════════════════════════════════
-     SECTION 3 — CERTIFICATES & TIER ACTIVITY
-════════════════════════════════════════════ -->
-<div class="section-title">Certificates &amp; Tier Activity</div>
-<div class="kpi-grid kpi-grid-5">
-
-  <div class="kpi-card teal">
-    <div class="kpi-label">Certificates Issued</div>
-    <div class="kpi-value">{fmt_int(t['Loyalty Certificates Issued'])}</div>
-    <div class="kpi-sub">{fmt_currency(t['Loyalty Certificates Issued Amount'])} total value</div>
-  </div>
-
-  <div class="kpi-card teal">
-    <div class="kpi-label">Certificates Redeemed</div>
-    <div class="kpi-value">{fmt_int(t['Loyalty Certificates Redeemed'])}</div>
-    <div class="kpi-sub">{fmt_currency(t['Loyalty Certificates Redeemed Amount'])} total value</div>
-  </div>
-
-  <div class="kpi-card orange">
-    <div class="kpi-label">Daily $20 Birthday Cert.</div>
-    <div class="kpi-value">{fmt_currency(t['Daily $20 Birthday Certificate'])}</div>
-    <div class="kpi-sub">Total issued value</div>
-  </div>
-
-  <div class="kpi-card green">
-    <div class="kpi-label">Tier Upgrades</div>
-    <div class="kpi-value">{fmt_int(t['Tier Upgrades'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Tier Upgrades'])} / day</div>
-  </div>
-
-  <div class="kpi-card red">
-    <div class="kpi-label">Tier Downgrades</div>
-    <div class="kpi-value">{fmt_int(t['Tier Downgrades'])}</div>
-    <div class="kpi-sub">Avg {fmt_int(avg['Tier Downgrades'])} / day</div>
-  </div>
-
-</div>
-
-<!-- ════════════════════════════════════════════
-     SECTION 4 — DAILY BREAKDOWN
-════════════════════════════════════════════ -->
-<div class="section-title">Daily Breakdown</div>
-<div class="table-wrapper">
-<table>
-  <thead>
-    <tr>
-      <!-- grouping header row -->
-      <th rowspan="2" style="text-align:left;">Date</th>
-      <th rowspan="2" class="col-enroll">Enrollments</th>
-      <th colspan="2" class="col-loy" style="text-align:center;">Loyalty Transactions</th>
-      <th colspan="2" class="col-nonloy" style="text-align:center;">Non-Loyalty Transactions</th>
-      <th colspan="3" class="col-earned" style="text-align:center;">Points Earned</th>
-      <th colspan="3" class="col-redeem" style="text-align:center;">Points Redeemed</th>
-      <th colspan="3" class="col-expire" style="text-align:center;">Points Expired</th>
-      <th colspan="3" class="col-forfeit" style="text-align:center;">Points Forfeited</th>
-      <th colspan="2" class="col-cert" style="text-align:center;">Certs Issued</th>
-      <th colspan="2" class="col-cert" style="text-align:center;">Certs Redeemed</th>
-      <th rowspan="2" class="col-cert">Birthday Cert</th>
-      <th rowspan="2" class="col-tier">Tier Up</th>
-      <th rowspan="2" class="col-tier">Tier Down</th>
-    </tr>
-    <tr class="subhead">
-      <!-- Loyalty Txn -->
-      <th class="col-loy">Sales</th>
-      <th>Returns</th>
-      <!-- Non-Loyalty Txn -->
-      <th class="col-nonloy">Sales</th>
-      <th>Returns</th>
-      <!-- Points Earned -->
-      <th class="col-earned">Base</th>
-      <th>Bonus</th>
-      <th>Adjusted</th>
-      <!-- Points Redeemed -->
-      <th class="col-redeem">Base</th>
-      <th>Bonus</th>
-      <th>Adjusted</th>
-      <!-- Points Expired -->
-      <th class="col-expire">Base</th>
-      <th>Bonus</th>
-      <th>Adjusted</th>
-      <!-- Points Forfeited -->
-      <th class="col-forfeit">Base</th>
-      <th>Bonus</th>
-      <th>Adjusted</th>
-      <!-- Certs Issued -->
-      <th class="col-cert">Count</th>
-      <th>Amount</th>
-      <!-- Certs Redeemed -->
-      <th class="col-cert">Count</th>
-      <th>Amount</th>
-    </tr>
-  </thead>
-  <tbody>
-    {daily_rows}
-  </tbody>
-  <tfoot>
-    <tr>
-      <td>TOTAL</td>
-      <td>{fmt_int(t['Enrollments'])}</td>
-      <td>{fmt_int(t['Loyalty Sale Transactions'])}</td>
-      <td>{fmt_int(t['Loyalty Return Transactions'])}</td>
-      <td>{fmt_int(t['Non-Loyalty Sale Transactions'])}</td>
-      <td>{fmt_int(t['Non-Loyalty Return Transactions'])}</td>
-      <td>{fmt_pts(t['Base Points Earned'])}</td>
-      <td>{fmt_pts(t['Bonus Points Earned'])}</td>
-      <td>{fmt_pts(t['Adjusted Points Earned'])}</td>
-      <td>{fmt_pts(t['Base Points Redeemed'])}</td>
-      <td>{fmt_pts(t['Bonus Points Redeemed'])}</td>
-      <td>{fmt_pts(t['Adjusted Points Redeemed'])}</td>
-      <td>{fmt_pts(t['Base Points Expired'])}</td>
-      <td>{fmt_pts(t['Bonus Points Expired'])}</td>
-      <td>{fmt_pts(t['Adjusted Points Expired'])}</td>
-      <td>{fmt_pts(t['Base Points Forfeited'])}</td>
-      <td>{fmt_pts(t['Bonus Points Forfeited'])}</td>
-      <td>{fmt_pts(t['Adjusted Points Forfeited'])}</td>
-      <td>{fmt_int(t['Loyalty Certificates Issued'])}</td>
-      <td>{fmt_currency(t['Loyalty Certificates Issued Amount'])}</td>
-      <td>{fmt_int(t['Loyalty Certificates Redeemed'])}</td>
-      <td>{fmt_currency(t['Loyalty Certificates Redeemed Amount'])}</td>
-      <td>{fmt_currency(t['Daily $20 Birthday Certificate'])}</td>
-      <td>{fmt_int(t['Tier Upgrades'])}</td>
-      <td>{fmt_int(t['Tier Downgrades'])}</td>
-    </tr>
-  </tfoot>
-</table>
-</div>
-
-</div><!-- /content -->
 </body>
 </html>"""
 
@@ -606,8 +360,6 @@ def generate_report(input_path, output_path=None):
 
 if __name__ == "__main__":
     if len(sys.argv) < 2:
-        print("Usage: python generate_report.py <input_file> [output_file.html]")
+        print("Usage: python generate_report.py <input_file> [output.html]")
         sys.exit(1)
-    input_file = sys.argv[1]
-    output_file = sys.argv[2] if len(sys.argv) > 2 else None
-    generate_report(input_file, output_file)
+    generate_report(sys.argv[1], sys.argv[2] if len(sys.argv) > 2 else None)
