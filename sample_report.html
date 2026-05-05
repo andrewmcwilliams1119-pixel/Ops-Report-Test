@@ -1,0 +1,879 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Operations Report | April 17, 2026 &ndash; April 30, 2026</title>
+<style>
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: 'Segoe UI', Arial, sans-serif;
+    font-size: 13px;
+    background: #f0f2f5;
+    color: #1a1a2e;
+  }
+
+  /* ── HEADER ── */
+  .report-header {
+    background: #1a1a2e;
+    color: #ffffff;
+    padding: 28px 40px 22px;
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-end;
+  }
+  .report-header h1 {
+    font-size: 26px;
+    font-weight: 700;
+    letter-spacing: 0.5px;
+    text-transform: uppercase;
+  }
+  .report-header .subtitle {
+    font-size: 14px;
+    color: #a0aec0;
+    margin-top: 4px;
+  }
+  .report-header .meta {
+    text-align: right;
+    font-size: 12px;
+    color: #a0aec0;
+    line-height: 1.8;
+  }
+  .report-header .meta strong {
+    color: #ffffff;
+  }
+
+  /* ── CONTENT ── */
+  .content { padding: 30px 40px 50px; }
+
+  /* ── SECTION TITLES ── */
+  .section-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 1.2px;
+    color: #718096;
+    margin: 28px 0 12px;
+    padding-bottom: 6px;
+    border-bottom: 2px solid #e2e8f0;
+  }
+
+  /* ── KPI CARDS ── */
+  .kpi-grid {
+    display: grid;
+    gap: 14px;
+  }
+  .kpi-grid-3 { grid-template-columns: repeat(3, 1fr); }
+  .kpi-grid-4 { grid-template-columns: repeat(4, 1fr); }
+  .kpi-grid-5 { grid-template-columns: repeat(5, 1fr); }
+  .kpi-grid-6 { grid-template-columns: repeat(6, 1fr); }
+
+  .kpi-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-left: 4px solid #4a90d9;
+  }
+  .kpi-card.green  { border-left-color: #38a169; }
+  .kpi-card.red    { border-left-color: #e53e3e; }
+  .kpi-card.purple { border-left-color: #805ad5; }
+  .kpi-card.orange { border-left-color: #dd6b20; }
+  .kpi-card.teal   { border-left-color: #319795; }
+  .kpi-card.gray   { border-left-color: #718096; }
+
+  .kpi-label {
+    font-size: 10.5px;
+    font-weight: 600;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #718096;
+    margin-bottom: 6px;
+  }
+  .kpi-value {
+    font-size: 22px;
+    font-weight: 700;
+    color: #1a1a2e;
+    line-height: 1.1;
+  }
+  .kpi-sub {
+    font-size: 11px;
+    color: #a0aec0;
+    margin-top: 4px;
+  }
+
+  /* Points cards: show base / bonus / adjusted in one card */
+  .pts-card {
+    background: #ffffff;
+    border-radius: 8px;
+    padding: 18px 20px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    border-left: 4px solid #4a90d9;
+  }
+  .pts-card.green  { border-left-color: #38a169; }
+  .pts-card.red    { border-left-color: #e53e3e; }
+  .pts-card.orange { border-left-color: #dd6b20; }
+  .pts-card.gray   { border-left-color: #718096; }
+
+  .pts-title {
+    font-size: 11px;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.8px;
+    color: #4a5568;
+    margin-bottom: 12px;
+    padding-bottom: 8px;
+    border-bottom: 1px solid #e2e8f0;
+  }
+  .pts-row {
+    display: flex;
+    justify-content: space-between;
+    margin-bottom: 6px;
+  }
+  .pts-row-label {
+    font-size: 11.5px;
+    color: #718096;
+  }
+  .pts-row-value {
+    font-size: 12px;
+    font-weight: 600;
+    color: #1a1a2e;
+  }
+  .pts-row.adjusted .pts-row-label {
+    color: #1a1a2e;
+    font-weight: 700;
+  }
+  .pts-row.adjusted .pts-row-value {
+    font-size: 13px;
+    color: #1a1a2e;
+  }
+
+  /* ── CERT CARD ── */
+  .cert-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 14px;
+  }
+
+  /* ── DAILY TABLE ── */
+  .table-wrapper {
+    overflow-x: auto;
+    background: #ffffff;
+    border-radius: 8px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    margin-top: 4px;
+  }
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 11.5px;
+  }
+  thead tr {
+    background: #1a1a2e;
+    color: #ffffff;
+  }
+  thead th {
+    padding: 10px 10px;
+    text-align: right;
+    font-weight: 600;
+    font-size: 10.5px;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+    white-space: nowrap;
+  }
+  thead th:first-child { text-align: left; }
+  thead tr.subhead {
+    background: #2d3748;
+    color: #a0aec0;
+    font-size: 9.5px;
+  }
+  thead tr.subhead th { padding: 4px 10px 6px; }
+
+  tbody tr { border-bottom: 1px solid #e2e8f0; }
+  tbody tr:nth-child(even) { background: #f7fafc; }
+  tbody tr:hover { background: #ebf4ff; }
+  tbody td {
+    padding: 8px 10px;
+    text-align: right;
+    white-space: nowrap;
+    color: #2d3748;
+  }
+  tbody td:first-child {
+    text-align: left;
+    font-weight: 600;
+    color: #1a1a2e;
+  }
+
+  tfoot tr { background: #2d3748; color: #ffffff; font-weight: 700; }
+  tfoot td {
+    padding: 9px 10px;
+    text-align: right;
+    white-space: nowrap;
+    font-size: 12px;
+  }
+  tfoot td:first-child { text-align: left; }
+
+  /* column group backgrounds */
+  .col-enroll  { border-left: 3px solid #4a90d9; }
+  .col-loy     { border-left: 3px solid #38a169; }
+  .col-nonloy  { border-left: 3px solid #805ad5; }
+  .col-earned  { border-left: 3px solid #38a169; }
+  .col-redeem  { border-left: 3px solid #e53e3e; }
+  .col-expire  { border-left: 3px solid #dd6b20; }
+  .col-forfeit { border-left: 3px solid #718096; }
+  .col-cert    { border-left: 3px solid #319795; }
+  .col-tier    { border-left: 3px solid #4a90d9; }
+
+  /* ── PRINT ── */
+  @media print {
+    body { background: white; font-size: 11px; }
+    .content { padding: 20px; }
+    .report-header { padding: 16px 20px; }
+    .kpi-value { font-size: 18px; }
+    .table-wrapper { box-shadow: none; }
+    thead tr { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    tfoot tr  { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+    .kpi-card, .pts-card { -webkit-print-color-adjust: exact; print-color-adjust: exact; }
+  }
+</style>
+</head>
+<body>
+
+<!-- ════════════════════════════════════════════
+     HEADER
+════════════════════════════════════════════ -->
+<div class="report-header">
+  <div>
+    <h1>Operations Report</h1>
+    <div class="subtitle">April 17, 2026 &ndash; April 30, 2026 &nbsp;|&nbsp; 14 Days</div>
+  </div>
+  <div class="meta">
+    <strong>Generated</strong><br>May 05, 2026 at 07:05 PM
+  </div>
+</div>
+
+<div class="content">
+
+<!-- ════════════════════════════════════════════
+     SECTION 1 — ENROLLMENTS & TRANSACTIONS
+════════════════════════════════════════════ -->
+<div class="section-title">Enrollments &amp; Transactions</div>
+<div class="kpi-grid kpi-grid-5">
+
+  <div class="kpi-card">
+    <div class="kpi-label">Total Enrollments</div>
+    <div class="kpi-value">19,953</div>
+    <div class="kpi-sub">Avg 1,425 / day</div>
+  </div>
+
+  <div class="kpi-card green">
+    <div class="kpi-label">Loyalty Sale Transactions</div>
+    <div class="kpi-value">349,776</div>
+    <div class="kpi-sub">Avg 24,984 / day</div>
+  </div>
+
+  <div class="kpi-card red">
+    <div class="kpi-label">Loyalty Return Transactions</div>
+    <div class="kpi-value">43,137</div>
+    <div class="kpi-sub">Avg 3,081 / day</div>
+  </div>
+
+  <div class="kpi-card purple">
+    <div class="kpi-label">Non-Loyalty Sale Transactions</div>
+    <div class="kpi-value">66,812</div>
+    <div class="kpi-sub">Avg 4,772 / day</div>
+  </div>
+
+  <div class="kpi-card purple">
+    <div class="kpi-label">Non-Loyalty Return Transactions</div>
+    <div class="kpi-value">4,689</div>
+    <div class="kpi-sub">Avg 334 / day</div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════
+     SECTION 2 — POINTS ACTIVITY
+════════════════════════════════════════════ -->
+<div class="section-title">Points Activity</div>
+<div class="kpi-grid kpi-grid-4">
+
+  <!-- EARNED -->
+  <div class="pts-card green">
+    <div class="pts-title">Points Earned</div>
+    <div class="pts-row">
+      <span class="pts-row-label">Base</span>
+      <span class="pts-row-value">239,529,674</span>
+    </div>
+    <div class="pts-row">
+      <span class="pts-row-label">Bonus</span>
+      <span class="pts-row-value">472,198,887</span>
+    </div>
+    <div class="pts-row adjusted">
+      <span class="pts-row-label">Adjusted</span>
+      <span class="pts-row-value">316,604</span>
+    </div>
+  </div>
+
+  <!-- REDEEMED -->
+  <div class="pts-card red">
+    <div class="pts-title">Points Redeemed</div>
+    <div class="pts-row">
+      <span class="pts-row-label">Base</span>
+      <span class="pts-row-value">-192,272,068</span>
+    </div>
+    <div class="pts-row">
+      <span class="pts-row-label">Bonus</span>
+      <span class="pts-row-value">-407,896,322</span>
+    </div>
+    <div class="pts-row adjusted">
+      <span class="pts-row-label">Adjusted</span>
+      <span class="pts-row-value">-890,610</span>
+    </div>
+  </div>
+
+  <!-- EXPIRED -->
+  <div class="pts-card orange">
+    <div class="pts-title">Points Expired</div>
+    <div class="pts-row">
+      <span class="pts-row-label">Base</span>
+      <span class="pts-row-value">-25,118,888</span>
+    </div>
+    <div class="pts-row">
+      <span class="pts-row-label">Bonus</span>
+      <span class="pts-row-value">-10,769,019</span>
+    </div>
+    <div class="pts-row adjusted">
+      <span class="pts-row-label">Adjusted</span>
+      <span class="pts-row-value">858,129</span>
+    </div>
+  </div>
+
+  <!-- FORFEITED -->
+  <div class="pts-card gray">
+    <div class="pts-title">Points Forfeited</div>
+    <div class="pts-row">
+      <span class="pts-row-label">Base</span>
+      <span class="pts-row-value">0</span>
+    </div>
+    <div class="pts-row">
+      <span class="pts-row-label">Bonus</span>
+      <span class="pts-row-value">-11</span>
+    </div>
+    <div class="pts-row adjusted">
+      <span class="pts-row-label">Adjusted</span>
+      <span class="pts-row-value">0</span>
+    </div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════
+     SECTION 3 — CERTIFICATES & TIER ACTIVITY
+════════════════════════════════════════════ -->
+<div class="section-title">Certificates &amp; Tier Activity</div>
+<div class="kpi-grid kpi-grid-5">
+
+  <div class="kpi-card teal">
+    <div class="kpi-label">Certificates Issued</div>
+    <div class="kpi-value">136,823</div>
+    <div class="kpi-sub">$2,003,560.00 total value</div>
+  </div>
+
+  <div class="kpi-card teal">
+    <div class="kpi-label">Certificates Redeemed</div>
+    <div class="kpi-value">64,962</div>
+    <div class="kpi-sub">$1,065,802.24 total value</div>
+  </div>
+
+  <div class="kpi-card orange">
+    <div class="kpi-label">Daily $20 Birthday Cert.</div>
+    <div class="kpi-value">$433,959.00</div>
+    <div class="kpi-sub">Total issued value</div>
+  </div>
+
+  <div class="kpi-card green">
+    <div class="kpi-label">Tier Upgrades</div>
+    <div class="kpi-value">7,144</div>
+    <div class="kpi-sub">Avg 510 / day</div>
+  </div>
+
+  <div class="kpi-card red">
+    <div class="kpi-label">Tier Downgrades</div>
+    <div class="kpi-value">0</div>
+    <div class="kpi-sub">Avg 0 / day</div>
+  </div>
+
+</div>
+
+<!-- ════════════════════════════════════════════
+     SECTION 4 — DAILY BREAKDOWN
+════════════════════════════════════════════ -->
+<div class="section-title">Daily Breakdown</div>
+<div class="table-wrapper">
+<table>
+  <thead>
+    <tr>
+      <!-- grouping header row -->
+      <th rowspan="2" style="text-align:left;">Date</th>
+      <th rowspan="2" class="col-enroll">Enrollments</th>
+      <th colspan="2" class="col-loy" style="text-align:center;">Loyalty Transactions</th>
+      <th colspan="2" class="col-nonloy" style="text-align:center;">Non-Loyalty Transactions</th>
+      <th colspan="3" class="col-earned" style="text-align:center;">Points Earned</th>
+      <th colspan="3" class="col-redeem" style="text-align:center;">Points Redeemed</th>
+      <th colspan="3" class="col-expire" style="text-align:center;">Points Expired</th>
+      <th colspan="3" class="col-forfeit" style="text-align:center;">Points Forfeited</th>
+      <th colspan="2" class="col-cert" style="text-align:center;">Certs Issued</th>
+      <th colspan="2" class="col-cert" style="text-align:center;">Certs Redeemed</th>
+      <th rowspan="2" class="col-cert">Birthday Cert</th>
+      <th rowspan="2" class="col-tier">Tier Up</th>
+      <th rowspan="2" class="col-tier">Tier Down</th>
+    </tr>
+    <tr class="subhead">
+      <!-- Loyalty Txn -->
+      <th class="col-loy">Sales</th>
+      <th>Returns</th>
+      <!-- Non-Loyalty Txn -->
+      <th class="col-nonloy">Sales</th>
+      <th>Returns</th>
+      <!-- Points Earned -->
+      <th class="col-earned">Base</th>
+      <th>Bonus</th>
+      <th>Adjusted</th>
+      <!-- Points Redeemed -->
+      <th class="col-redeem">Base</th>
+      <th>Bonus</th>
+      <th>Adjusted</th>
+      <!-- Points Expired -->
+      <th class="col-expire">Base</th>
+      <th>Bonus</th>
+      <th>Adjusted</th>
+      <!-- Points Forfeited -->
+      <th class="col-forfeit">Base</th>
+      <th>Bonus</th>
+      <th>Adjusted</th>
+      <!-- Certs Issued -->
+      <th class="col-cert">Count</th>
+      <th>Amount</th>
+      <!-- Certs Redeemed -->
+      <th class="col-cert">Count</th>
+      <th>Amount</th>
+    </tr>
+  </thead>
+  <tbody>
+    
+        <tr>
+            <td>4/17/2026</td>
+            <td>1,694</td>
+            <td>29,427</td>
+            <td>2,687</td>
+            <td>5,220</td>
+            <td>278</td>
+            <td>17,946,048</td>
+            <td>15,135,826</td>
+            <td>13,632</td>
+            <td>-9,809,116</td>
+            <td>-16,555,662</td>
+            <td>-59,222</td>
+            <td>-2,079,927</td>
+            <td>-760,133</td>
+            <td>132,231</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>7,853</td>
+            <td>$88,080.00</td>
+            <td>5,307</td>
+            <td>$89,708.37</td>
+            <td>$0.00</td>
+            <td>501</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/18/2026</td>
+            <td>2,248</td>
+            <td>27,432</td>
+            <td>3,174</td>
+            <td>5,549</td>
+            <td>327</td>
+            <td>17,865,667</td>
+            <td>13,948,598</td>
+            <td>6,000</td>
+            <td>-9,373,834</td>
+            <td>-15,484,505</td>
+            <td>-50,661</td>
+            <td>-1,688,274</td>
+            <td>-644,747</td>
+            <td>82,827</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>7,402</td>
+            <td>$83,030.00</td>
+            <td>5,006</td>
+            <td>$86,007.74</td>
+            <td>$0.00</td>
+            <td>497</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/19/2026</td>
+            <td>1,964</td>
+            <td>21,892</td>
+            <td>4,371</td>
+            <td>3,970</td>
+            <td>383</td>
+            <td>15,765,912</td>
+            <td>12,460,992</td>
+            <td>9,590</td>
+            <td>-7,938,342</td>
+            <td>-13,703,976</td>
+            <td>-32,682</td>
+            <td>-1,884,436</td>
+            <td>-680,296</td>
+            <td>37,162</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>6,440</td>
+            <td>$72,250.00</td>
+            <td>3,183</td>
+            <td>$53,236.70</td>
+            <td>$0.00</td>
+            <td>417</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/20/2026</td>
+            <td>1,157</td>
+            <td>13,600</td>
+            <td>2,776</td>
+            <td>2,580</td>
+            <td>245</td>
+            <td>8,704,586</td>
+            <td>19,287,601</td>
+            <td>34,000</td>
+            <td>-4,266,189</td>
+            <td>-7,755,289</td>
+            <td>-20,522</td>
+            <td>-2,232,119</td>
+            <td>-697,590</td>
+            <td>64,456</td>
+            <td>0</td>
+            <td>-3</td>
+            <td>0</td>
+            <td>3,636</td>
+            <td>$40,140.00</td>
+            <td>1,605</td>
+            <td>$26,505.07</td>
+            <td>$0.00</td>
+            <td>209</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/21/2026</td>
+            <td>1,079</td>
+            <td>23,108</td>
+            <td>2,815</td>
+            <td>4,926</td>
+            <td>362</td>
+            <td>15,992,070</td>
+            <td>23,502,668</td>
+            <td>41,510</td>
+            <td>-14,815,378</td>
+            <td>-28,938,515</td>
+            <td>-82,107</td>
+            <td>-1,825,217</td>
+            <td>-556,840</td>
+            <td>45,514</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>10,912</td>
+            <td>$146,120.00</td>
+            <td>4,019</td>
+            <td>$67,142.86</td>
+            <td>$0.00</td>
+            <td>496</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/22/2026</td>
+            <td>1,163</td>
+            <td>28,051</td>
+            <td>2,838</td>
+            <td>5,508</td>
+            <td>363</td>
+            <td>20,344,647</td>
+            <td>28,421,467</td>
+            <td>23,000</td>
+            <td>-14,493,778</td>
+            <td>-25,667,907</td>
+            <td>-53,315</td>
+            <td>-953,175</td>
+            <td>-387,116</td>
+            <td>14,035</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>10,021</td>
+            <td>$134,050.00</td>
+            <td>5,279</td>
+            <td>$89,549.02</td>
+            <td>$0.00</td>
+            <td>637</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/23/2026</td>
+            <td>1,247</td>
+            <td>26,206</td>
+            <td>2,942</td>
+            <td>5,364</td>
+            <td>338</td>
+            <td>17,226,250</td>
+            <td>33,810,173</td>
+            <td>30,732</td>
+            <td>-14,224,740</td>
+            <td>-28,226,532</td>
+            <td>-94,728</td>
+            <td>-1,888,099</td>
+            <td>-630,712</td>
+            <td>50,532</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>9,709</td>
+            <td>$141,830.00</td>
+            <td>4,432</td>
+            <td>$71,806.29</td>
+            <td>$0.00</td>
+            <td>523</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/24/2026</td>
+            <td>1,480</td>
+            <td>32,614</td>
+            <td>2,798</td>
+            <td>5,900</td>
+            <td>332</td>
+            <td>21,116,459</td>
+            <td>50,681,250</td>
+            <td>13,500</td>
+            <td>-19,394,643</td>
+            <td>-42,196,063</td>
+            <td>-71,294</td>
+            <td>-2,433,418</td>
+            <td>-681,897</td>
+            <td>81,767</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>13,042</td>
+            <td>$205,540.00</td>
+            <td>6,137</td>
+            <td>$98,985.52</td>
+            <td>$0.00</td>
+            <td>617</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/25/2026</td>
+            <td>2,206</td>
+            <td>30,128</td>
+            <td>3,150</td>
+            <td>5,544</td>
+            <td>401</td>
+            <td>21,307,207</td>
+            <td>60,031,591</td>
+            <td>9,000</td>
+            <td>-21,759,966</td>
+            <td>-48,659,394</td>
+            <td>-95,640</td>
+            <td>-1,994,391</td>
+            <td>-784,947</td>
+            <td>23,935</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>14,261</td>
+            <td>$235,050.00</td>
+            <td>5,875</td>
+            <td>$97,852.79</td>
+            <td>$0.00</td>
+            <td>653</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/26/2026</td>
+            <td>1,439</td>
+            <td>24,987</td>
+            <td>4,321</td>
+            <td>4,205</td>
+            <td>367</td>
+            <td>18,579,535</td>
+            <td>53,597,533</td>
+            <td>6,000</td>
+            <td>-18,664,324</td>
+            <td>-42,750,588</td>
+            <td>-73,088</td>
+            <td>-1,670,657</td>
+            <td>-835,840</td>
+            <td>37,674</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>12,249</td>
+            <td>$204,960.00</td>
+            <td>4,139</td>
+            <td>$65,865.13</td>
+            <td>$0.00</td>
+            <td>552</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/27/2026</td>
+            <td>1,029</td>
+            <td>12,919</td>
+            <td>2,676</td>
+            <td>2,274</td>
+            <td>217</td>
+            <td>8,493,953</td>
+            <td>23,836,511</td>
+            <td>21,840</td>
+            <td>-8,492,860</td>
+            <td>-18,551,306</td>
+            <td>-15,834</td>
+            <td>-1,922,457</td>
+            <td>-1,261,202</td>
+            <td>133,020</td>
+            <td>0</td>
+            <td>-8</td>
+            <td>0</td>
+            <td>5,737</td>
+            <td>$90,200.00</td>
+            <td>2,065</td>
+            <td>$31,240.16</td>
+            <td>$0.00</td>
+            <td>243</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/28/2026</td>
+            <td>909</td>
+            <td>25,757</td>
+            <td>2,765</td>
+            <td>5,686</td>
+            <td>358</td>
+            <td>17,894,435</td>
+            <td>47,483,832</td>
+            <td>22,800</td>
+            <td>-16,600,091</td>
+            <td>-39,965,732</td>
+            <td>-47,177</td>
+            <td>-2,037,923</td>
+            <td>-1,325,645</td>
+            <td>96,494</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>11,930</td>
+            <td>$188,730.00</td>
+            <td>5,021</td>
+            <td>$81,302.24</td>
+            <td>$1.00</td>
+            <td>574</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/29/2026</td>
+            <td>1,096</td>
+            <td>26,097</td>
+            <td>2,896</td>
+            <td>5,059</td>
+            <td>383</td>
+            <td>19,344,577</td>
+            <td>49,911,082</td>
+            <td>48,500</td>
+            <td>-17,754,402</td>
+            <td>-43,320,795</td>
+            <td>-73,803</td>
+            <td>-921,176</td>
+            <td>-604,384</td>
+            <td>25,065</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>12,341</td>
+            <td>$203,830.00</td>
+            <td>6,125</td>
+            <td>$101,449.52</td>
+            <td>$0.00</td>
+            <td>634</td>
+            <td>0</td>
+        </tr>
+        <tr>
+            <td>4/30/2026</td>
+            <td>1,242</td>
+            <td>27,558</td>
+            <td>2,928</td>
+            <td>5,027</td>
+            <td>335</td>
+            <td>18,948,328</td>
+            <td>40,089,763</td>
+            <td>36,500</td>
+            <td>-14,684,405</td>
+            <td>-36,120,058</td>
+            <td>-120,537</td>
+            <td>-1,587,619</td>
+            <td>-917,670</td>
+            <td>33,417</td>
+            <td>0</td>
+            <td>0</td>
+            <td>0</td>
+            <td>11,290</td>
+            <td>$169,750.00</td>
+            <td>6,769</td>
+            <td>$105,150.83</td>
+            <td>$433,958.00</td>
+            <td>591</td>
+            <td>0</td>
+        </tr>
+  </tbody>
+  <tfoot>
+    <tr>
+      <td>TOTAL</td>
+      <td>19,953</td>
+      <td>349,776</td>
+      <td>43,137</td>
+      <td>66,812</td>
+      <td>4,689</td>
+      <td>239,529,674</td>
+      <td>472,198,887</td>
+      <td>316,604</td>
+      <td>-192,272,068</td>
+      <td>-407,896,322</td>
+      <td>-890,610</td>
+      <td>-25,118,888</td>
+      <td>-10,769,019</td>
+      <td>858,129</td>
+      <td>0</td>
+      <td>-11</td>
+      <td>0</td>
+      <td>136,823</td>
+      <td>$2,003,560.00</td>
+      <td>64,962</td>
+      <td>$1,065,802.24</td>
+      <td>$433,959.00</td>
+      <td>7,144</td>
+      <td>0</td>
+    </tr>
+  </tfoot>
+</table>
+</div>
+
+</div><!-- /content -->
+</body>
+</html>
