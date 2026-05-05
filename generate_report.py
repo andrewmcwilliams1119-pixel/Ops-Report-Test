@@ -9,10 +9,7 @@ import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 from matplotlib.ticker import FuncFormatter
-import io
-import base64
-import sys
-import os
+import io, base64, sys, os
 
 REPORT_TITLE = "ANN Daily Operational Report"
 
@@ -23,146 +20,180 @@ C_LIGHTBLUE = "#5B88EC"
 C_CORAL     = "#FD7E4F"
 C_PURPLE    = "#5401C8"
 C_GREY      = "#EBE9FE"
-C_WHITE     = "#FFFFFF"
 
-# Chart alias
-C_BLUE      = C_NAVY
-C_GREEN     = C_NAVY
-C_RED       = C_CORAL
-C_ORANGE    = C_LIGHTBLUE
-C_FILL      = C_LIGHTBLUE
+# Threshold ranges (low, high) — values outside turn red
+THRESHOLDS = {
+    "Enrollments":                        (1_100,       5_000),
+    "Loyalty Sale Transactions":          (11_352,      19_175),
+    "Loyalty Return Transactions":        (13_640,      15_030),
+    "Non-Loyalty Return Transactions":    (1_988,       2_747),
+    "Base Points Earned":                 (4_327_566,   8_357_520),
+    "Bonus Points Earned":                (6_672_329,   10_075_431),
+    "Adjusted Points Earned":             (255_325,     379_061),
+    "Base Points Redeemed":               (-4_913_202,  -2_021_618),
+    "Bonus Points Redeemed":              (-11_256_037, -4_144_332),
+    "Adjusted Points Redeemed":           (-364_761,    -219_975),
+    "Base Points Expired":                (-2_128_453,  -1_318_800),
+    "Bonus Points Expired":               (-789_266,    -334_009),
+    "Adjusted Points Expired":            (-16_083,     -2_830),
+    "Loyalty Certificates Issued Amount": (42_901.14,   109_848.69),
+    "Loyalty Certificates Redeemed":      (4_030,       10_102),
+    "Loyalty Certificates Redeemed Amount": (42_532.43, 109_137.48),
+}
 
 
 def fmt_int(n):
-    if pd.isna(n):
-        return "0"
+    if pd.isna(n): return "0"
     return f"{int(n):,}"
 
-
 def fmt_currency(n):
-    if pd.isna(n):
-        return "$0.00"
+    if pd.isna(n): return "$0.00"
     return f"${float(n):,.2f}"
-
 
 def load_data(path):
     ext = os.path.splitext(path)[1].lower()
-    if ext in (".xlsx", ".xls"):
-        df = pd.read_excel(path)
-    else:
-        df = pd.read_csv(path)
+    df = pd.read_excel(path) if ext in (".xlsx", ".xls") else pd.read_csv(path)
     df["Report Date"] = pd.to_datetime(df["Report Date"])
-    df = df.sort_values("Report Date").reset_index(drop=True)
-    return df
+    return df.sort_values("Report Date").reset_index(drop=True)
 
-
-def fig_to_base64(fig):
+def fig_to_b64(fig):
     buf = io.BytesIO()
-    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight",
-                facecolor="white")
+    fig.savefig(buf, format="png", dpi=110, bbox_inches="tight", facecolor="white")
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
-
-def style_axes(ax, labels, n_series=1):
+def style_ax(ax, labels, n_series=1):
     ax.set_facecolor("white")
-    ax.spines["top"].set_visible(False)
-    ax.spines["right"].set_visible(False)
-    ax.spines["left"].set_color("#cccccc")
-    ax.spines["bottom"].set_color("#cccccc")
-    ax.tick_params(axis="both", labelsize=8, colors="#444444")
+    for spine in ["top", "right"]: ax.spines[spine].set_visible(False)
+    for spine in ["left", "bottom"]: ax.spines[spine].set_color("#cccccc")
+    ax.tick_params(axis="both", labelsize=8, colors="#444")
     ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
     ax.grid(axis="y", color="#eeeeee", linewidth=0.8, zorder=0)
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=0, fontsize=7.5)
-    # Padding so lines never touch the edges or overlap the legend
     ax.set_xlim(-0.5, len(labels) - 0.5)
-    top_margin = 0.22 if n_series > 1 else 0.12
-    ax.margins(y=top_margin)
+    ax.margins(y=0.20 if n_series > 1 else 0.15)
     ax.set_axisbelow(True)
 
-
-def make_line_chart(labels, series, fill=False, height=2.2, with_labels=False):
-    """series: list of (label, values, color, linestyle)"""
+def make_chart(labels, series, fill_first=False, height=2.3):
+    """
+    series: list of (label, values, color, linestyle, low, high)
+            low/high may be None for no threshold
+    """
     fig, ax = plt.subplots(figsize=(10, height))
     x = list(range(len(labels)))
 
-    for label, values, color, ls in series:
+    for label, values, color, ls, low, high in series:
         ax.plot(x, values, label=label, color=color, linestyle=ls,
-                linewidth=2, marker="o", markersize=4, zorder=3, clip_on=True)
+                linewidth=2, zorder=3, clip_on=True,
+                marker=None)  # markers drawn per-point below
 
-    if fill and len(series) == 1:
-        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.18, zorder=2)
+        # Threshold band
+        if low is not None and high is not None:
+            lo, hi = min(low, high), max(low, high)
+            ax.axhspan(lo, hi, alpha=0.07, color="#38a169", zorder=1)
+            ax.axhline(lo, color="#38a169", linewidth=0.8, linestyle="--", alpha=0.6, zorder=2)
+            ax.axhline(hi, color="#38a169", linewidth=0.8, linestyle="--", alpha=0.6, zorder=2)
 
-    style_axes(ax, labels, n_series=len(series))
+        # Per-point markers — red if outside range
+        for xi, yi in zip(x, values):
+            outside = (low is not None and high is not None and
+                       not (min(low, high) <= yi <= max(low, high)))
+            mc = "#e53e3e" if outside else color
+            ax.plot(xi, yi, "o", color=mc, markersize=4.5, zorder=4, clip_on=True)
+
+    if fill_first:
+        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.15, zorder=2)
+
+    style_ax(ax, labels, n_series=len(series))
     if len(series) > 1:
-        ax.legend(loc="upper right", frameon=True, framealpha=0.9,
-                  edgecolor="#dddddd", fontsize=8.5, ncol=min(len(series), 4))
+        ax.legend(loc="upper right", frameon=True, framealpha=0.92,
+                  edgecolor="#dddddd", fontsize=8, ncol=min(len(series), 4))
     fig.tight_layout(pad=0.4)
-    return fig_to_base64(fig)
+    return fig_to_b64(fig)
 
 
 def generate_report(input_path, output_path=None):
     df = load_data(input_path)
-
     labels = [d.strftime("%-m/%-d/%Y") for d in df["Report Date"]]
-    end_date = df["Report Date"].max()
-    date_str = end_date.strftime("%A, %m/%d/%Y")
-
-    # Series
-    enrollments    = df["Enrollments"].astype(int).tolist()
-    loy_sales      = df["Loyalty Sale Transactions"].astype(int).tolist()
-    nonloy_sales   = df["Non-Loyalty Sale Transactions"].astype(int).tolist()
-    loy_returns    = df["Loyalty Return Transactions"].astype(int).tolist()
-    nonloy_returns = df["Non-Loyalty Return Transactions"].astype(int).tolist()
-    base_earned    = df["Base Points Earned"].astype(int).tolist()
-    bonus_earned   = df["Bonus Points Earned"].astype(int).tolist()
-    base_redeemed  = [-int(x) for x in df["Base Points Redeemed"]]
-    bonus_redeemed = [-int(x) for x in df["Bonus Points Redeemed"]]
-    certs_issued   = df["Loyalty Certificates Issued"].astype(int).tolist()
-    certs_redeemed = df["Loyalty Certificates Redeemed"].astype(int).tolist()
-    tier_up        = df["Tier Upgrades"].astype(int).tolist()
-
-    # Charts
-    img_enrollments = make_line_chart(
-        labels, [("Enrollments", enrollments, C_FILL, "-")],
-        fill=True, with_labels=False)
-
-    img_transactions = make_line_chart(
-        labels,
-        [("Loyalty Sale Transactions",     loy_sales,    C_NAVY,      "-"),
-         ("Non-Loyalty Sale Transactions", nonloy_sales, C_LIGHTBLUE, "-")],
-        with_labels=False)
-
-    img_returns = make_line_chart(
-        labels,
-        [("Loyalty Return Transactions",     loy_returns,    C_CORAL,  "-"),
-         ("Non-Loyalty Return Transactions", nonloy_returns, C_PURPLE, "-")],
-        with_labels=False)
-
-    img_points = make_line_chart(
-        labels,
-        [("Base Points Earned",    base_earned,    C_NAVY,      "-"),
-         ("Bonus Points Earned",   bonus_earned,   C_LIGHTBLUE, "-"),
-         ("Base Points Redeemed",  base_redeemed,  C_CORAL,     "--"),
-         ("Bonus Points Redeemed", bonus_redeemed, C_PURPLE,    "--")],
-        height=2.6, with_labels=False)
-
-    img_certs = make_line_chart(
-        labels,
-        [("Certificates Issued",   certs_issued,   C_NAVY,  "-"),
-         ("Certificates Redeemed", certs_redeemed, C_CORAL, "-")],
-        with_labels=False)
-
-    img_tier = make_line_chart(
-        labels, [("Tier Upgrades", tier_up, C_PURPLE, "-")],
-        fill=True, with_labels=False)
-
-    # Daily table
+    date_str = df["Report Date"].max().strftime("%A, %m/%d/%Y")
     t = df.sum(numeric_only=True)
-    rows_html = ""
+
+    def col(name): return df[name].tolist()
+    def neg(name): return [-v for v in df[name].tolist()]
+    def thr(name): return THRESHOLDS.get(name, (None, None))
+
+    # ── CHARTS ──────────────────────────────────────────────────────
+    lo, hi = thr("Enrollments")
+    img_enroll = make_chart(labels, [
+        ("Enrollments", col("Enrollments"), C_LIGHTBLUE, "-", lo, hi)
+    ], fill_first=True)
+
+    img_txn = make_chart(labels, [
+        ("Loyalty Sale Transactions",     col("Loyalty Sale Transactions"),     C_NAVY,      "-", *thr("Loyalty Sale Transactions")),
+        ("Non-Loyalty Sale Transactions", col("Non-Loyalty Sale Transactions"), C_LIGHTBLUE, "-", None, None),
+    ])
+
+    img_returns = make_chart(labels, [
+        ("Loyalty Return Transactions",     col("Loyalty Return Transactions"),     C_CORAL,  "-", *thr("Loyalty Return Transactions")),
+        ("Non-Loyalty Return Transactions", col("Non-Loyalty Return Transactions"), C_PURPLE, "-", *thr("Non-Loyalty Return Transactions")),
+    ])
+
+    img_pts_earned = make_chart(labels, [
+        ("Base Points Earned",     col("Base Points Earned"),     C_NAVY,      "-",  *thr("Base Points Earned")),
+        ("Bonus Points Earned",    col("Bonus Points Earned"),    C_LIGHTBLUE, "-",  *thr("Bonus Points Earned")),
+        ("Adjusted Points Earned", col("Adjusted Points Earned"), C_CORAL,     "--", *thr("Adjusted Points Earned")),
+    ], height=2.6)
+
+    img_pts_redeemed = make_chart(labels, [
+        ("Base Points Redeemed",     col("Base Points Redeemed"),     C_NAVY,      "-",  *thr("Base Points Redeemed")),
+        ("Bonus Points Redeemed",    col("Bonus Points Redeemed"),    C_LIGHTBLUE, "-",  *thr("Bonus Points Redeemed")),
+        ("Adjusted Points Redeemed", col("Adjusted Points Redeemed"), C_CORAL,     "--", *thr("Adjusted Points Redeemed")),
+    ], height=2.6)
+
+    img_pts_expired = make_chart(labels, [
+        ("Base Points Expired",     col("Base Points Expired"),     C_NAVY,      "-",  *thr("Base Points Expired")),
+        ("Bonus Points Expired",    col("Bonus Points Expired"),    C_LIGHTBLUE, "-",  *thr("Bonus Points Expired")),
+        ("Adjusted Points Expired", col("Adjusted Points Expired"), C_CORAL,     "--", *thr("Adjusted Points Expired")),
+    ], height=2.6)
+
+    img_pts_forfeited = make_chart(labels, [
+        ("Base Points Forfeited",     col("Base Points Forfeited"),     C_NAVY,      "-",  None, None),
+        ("Bonus Points Forfeited",    col("Bonus Points Forfeited"),    C_LIGHTBLUE, "-",  None, None),
+        ("Adjusted Points Forfeited", col("Adjusted Points Forfeited"), C_CORAL,     "--", None, None),
+    ], height=2.6)
+
+    img_certs_issued = make_chart(labels, [
+        ("Certificates Issued (Count)", col("Loyalty Certificates Issued"), C_NAVY, "-", None, None),
+    ])
+
+    img_certs_issued_amt = make_chart(labels, [
+        ("Certificates Issued ($)", col("Loyalty Certificates Issued Amount"), C_LIGHTBLUE, "-",
+         *thr("Loyalty Certificates Issued Amount")),
+    ])
+
+    img_certs_redeemed = make_chart(labels, [
+        ("Certificates Redeemed (Count)", col("Loyalty Certificates Redeemed"), C_CORAL, "-",
+         *thr("Loyalty Certificates Redeemed")),
+    ])
+
+    img_certs_redeemed_amt = make_chart(labels, [
+        ("Certificates Redeemed ($)", col("Loyalty Certificates Redeemed Amount"), C_PURPLE, "-",
+         *thr("Loyalty Certificates Redeemed Amount")),
+    ])
+
+    img_tier_up = make_chart(labels, [
+        ("Tier Upgrades", col("Tier Upgrades"), C_NAVY, "-", None, None)
+    ], fill_first=True)
+
+    img_tier_down = make_chart(labels, [
+        ("Tier Downgrades", col("Tier Downgrades"), C_CORAL, "-", None, None)
+    ], fill_first=True)
+
+    # ── DAILY TABLE ROWS ────────────────────────────────────────────
+    rows = ""
     for _, r in df.iterrows():
-        rows_html += f"""
+        rows += f"""
         <tr>
           <td>{r['Report Date'].strftime('%-m/%-d/%Y')}</td>
           <td>{fmt_int(r['Enrollments'])}</td>
@@ -170,13 +201,24 @@ def generate_report(input_path, output_path=None):
           <td>{fmt_int(r['Loyalty Return Transactions'])}</td>
           <td>{fmt_int(r['Non-Loyalty Sale Transactions'])}</td>
           <td>{fmt_int(r['Non-Loyalty Return Transactions'])}</td>
-          <td>{fmt_int(r['Base Points Earned'] + r['Bonus Points Earned'] + r['Adjusted Points Earned'])}</td>
-          <td>{fmt_int(-(r['Base Points Redeemed'] + r['Bonus Points Redeemed'] + r['Adjusted Points Redeemed']))}</td>
+          <td>{fmt_int(r['Base Points Earned'])}</td>
+          <td>{fmt_int(r['Bonus Points Earned'])}</td>
+          <td>{fmt_int(r['Adjusted Points Earned'])}</td>
+          <td>{fmt_int(r['Base Points Redeemed'])}</td>
+          <td>{fmt_int(r['Bonus Points Redeemed'])}</td>
+          <td>{fmt_int(r['Adjusted Points Redeemed'])}</td>
+          <td>{fmt_int(r['Base Points Expired'])}</td>
+          <td>{fmt_int(r['Bonus Points Expired'])}</td>
+          <td>{fmt_int(r['Adjusted Points Expired'])}</td>
+          <td>{fmt_int(r['Base Points Forfeited'])}</td>
+          <td>{fmt_int(r['Bonus Points Forfeited'])}</td>
+          <td>{fmt_int(r['Adjusted Points Forfeited'])}</td>
           <td>{fmt_int(r['Loyalty Certificates Issued'])}</td>
           <td>{fmt_currency(r['Loyalty Certificates Issued Amount'])}</td>
           <td>{fmt_int(r['Loyalty Certificates Redeemed'])}</td>
           <td>{fmt_currency(r['Loyalty Certificates Redeemed Amount'])}</td>
           <td>{fmt_int(r['Tier Upgrades'])}</td>
+          <td>{fmt_int(r['Tier Downgrades'])}</td>
         </tr>"""
 
     html = f"""<!DOCTYPE html>
@@ -189,85 +231,145 @@ def generate_report(input_path, output_path=None):
   body {{
     font-family: 'Segoe UI', Arial, sans-serif;
     font-size: 12px;
-    background: #ffffff;
+    background: #fff;
     color: #222;
-    padding: 0 24px 40px;
+    padding: 0 20px 40px;
   }}
+
+  /* ── HEADER ── */
   .report-header {{
-    background: #051C2C;
+    background: {C_MIDNIGHT};
     padding: 14px 0 10px;
     text-align: center;
-    margin: 0 -24px 18px;
+    margin: 0 -20px 16px;
   }}
-  .report-header h1 {{
-    color: #ffffff;
-    font-size: 20px;
-    font-weight: 700;
-    letter-spacing: 0.5px;
-  }}
-  .report-header .date {{
-    color: #FD7E4F;
-    font-style: italic;
-    font-size: 13px;
-    margin-top: 2px;
-  }}
+  .report-header h1 {{ color: #fff; font-size: 20px; font-weight: 700; }}
+  .report-header .date {{ color: {C_CORAL}; font-style: italic; font-size: 13px; margin-top: 3px; }}
+
+  /* ── SECTION ── */
   .section {{
     border: 1px solid #d0d0d0;
-    margin-bottom: 14px;
-    background: #ffffff;
+    margin-bottom: 12px;
+    background: #fff;
   }}
   .section-header {{
-    background: #304F7F;
-    color: #ffffff;
+    background: {C_NAVY};
+    color: #fff;
     font-weight: 700;
     font-size: 12px;
     padding: 6px 12px;
   }}
-  .section-body {{
-    padding: 12px;
-    text-align: center;
+  .section-body {{ padding: 12px; }}
+  .section-body img {{ max-width: 100%; height: auto; display: block; margin: 0 auto; }}
+
+  /* ── TWO-COLUMN ROW ── */
+  .two-col {{ display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 12px; }}
+
+  /* ── EDITABLE FIELDS ── */
+  .field-grid {{
+    display: grid;
+    grid-template-columns: 160px 1fr;
+    row-gap: 6px;
+    column-gap: 10px;
+    align-items: start;
   }}
-  .section-body img {{
-    max-width: 100%;
-    height: auto;
-    display: block;
-    margin: 0 auto;
+  .field-label {{ font-weight: 700; color: #333; font-size: 11.5px; padding-top: 3px; }}
+  [contenteditable] {{
+    border: 1px dashed #bbb;
+    border-radius: 3px;
+    padding: 3px 6px;
+    min-height: 22px;
+    font-size: 11.5px;
+    color: #222;
+    outline: none;
+    background: #fafafa;
   }}
-  table {{
-    width: 100%;
-    border-collapse: collapse;
-    font-size: 11px;
+  [contenteditable]:focus {{ border-color: {C_LIGHTBLUE}; background: #f0f5ff; }}
+  [contenteditable]:empty:before {{
+    content: attr(data-placeholder);
+    color: #aaa;
+    font-style: italic;
   }}
-  thead th {{
-    background: #304F7F;
-    color: #ffffff;
-    text-align: right;
-    padding: 6px 8px;
-    font-weight: 600;
-    white-space: nowrap;
+
+  /* ── DEPLOYMENT TABLE ── */
+  .deploy-table {{ width: 100%; border-collapse: collapse; font-size: 11.5px; }}
+  .deploy-table th {{
+    background: {C_MIDNIGHT}; color: #fff;
+    padding: 5px 8px; text-align: left; font-weight: 600;
   }}
-  thead th:first-child {{ text-align: left; }}
-  tbody td {{
-    padding: 5px 8px;
-    text-align: right;
+  .deploy-table td {{
+    padding: 4px 8px;
     border-bottom: 1px solid #eee;
-    white-space: nowrap;
+    vertical-align: top;
   }}
-  tbody td:first-child {{ text-align: left; font-weight: 600; }}
-  tbody tr:nth-child(even) {{ background: #EBE9FE; }}
-  tfoot td {{
-    background: #051C2C;
-    color: #ffffff;
-    padding: 7px 8px;
-    text-align: right;
-    font-weight: 700;
-    white-space: nowrap;
+  .deploy-table td[contenteditable] {{
+    border: none;
+    border-bottom: 1px solid #eee;
+    border-radius: 0;
+    background: transparent;
+    width: 100%;
+    display: table-cell;
   }}
-  tfoot td:first-child {{ text-align: left; }}
+  .deploy-table td[contenteditable]:focus {{ background: #f0f5ff; }}
+  .deploy-table tr:nth-child(even) td {{ background: {C_GREY}; }}
+  .deploy-table tr:nth-child(even) td[contenteditable]:focus {{ background: #f0f5ff; }}
+
+  /* ── NEW RELIC TABLE ── */
+  .nr-table {{ width: 100%; border-collapse: collapse; font-size: 11.5px; }}
+  .nr-table th {{
+    background: {C_MIDNIGHT}; color: #fff;
+    padding: 5px 8px; text-align: left; font-weight: 600;
+  }}
+  .nr-table td {{
+    padding: 4px 8px; border-bottom: 1px solid #eee;
+  }}
+  .nr-table td[contenteditable] {{
+    border: none; border-bottom: 1px solid #eee;
+    border-radius: 0; background: transparent;
+  }}
+  .nr-table td[contenteditable]:focus {{ background: #f0f5ff; }}
+  .nr-table tr:nth-child(even) td {{ background: {C_GREY}; }}
+
+  /* ── THRESHOLD LEGEND ── */
+  .threshold-note {{
+    font-size: 10px; color: #666; margin-top: 4px; text-align: right;
+  }}
+  .dot-green {{ display:inline-block; width:8px; height:8px; border-radius:50%;
+                background:#38a169; margin-right:3px; }}
+  .dot-red   {{ display:inline-block; width:8px; height:8px; border-radius:50%;
+                background:#e53e3e; margin-right:3px; }}
+
+  /* ── DAILY TABLE ── */
+  .table-wrap {{ overflow-x: auto; }}
+  table.daily {{ width: 100%; border-collapse: collapse; font-size: 10.5px; }}
+  table.daily thead th {{
+    background: {C_NAVY}; color: #fff;
+    text-align: right; padding: 5px 7px;
+    font-weight: 600; white-space: nowrap;
+  }}
+  table.daily thead th:first-child {{ text-align: left; }}
+  table.daily thead tr.group-header th {{
+    background: {C_MIDNIGHT}; font-size: 10px;
+    text-align: center; letter-spacing: 0.5px;
+  }}
+  table.daily tbody td {{
+    padding: 4px 7px; text-align: right;
+    border-bottom: 1px solid #eee; white-space: nowrap;
+  }}
+  table.daily tbody td:first-child {{ text-align: left; font-weight: 600; }}
+  table.daily tbody tr:nth-child(even) {{ background: {C_GREY}; }}
+  table.daily tfoot td {{
+    background: {C_MIDNIGHT}; color: #fff;
+    padding: 6px 7px; text-align: right;
+    font-weight: 700; white-space: nowrap;
+  }}
+  table.daily tfoot td:first-child {{ text-align: left; }}
+
   @media print {{
-    body {{ padding: 0 12px 20px; }}
+    body {{ padding: 0 10px 20px; }}
     .section {{ page-break-inside: avoid; }}
-    .report-header, thead th, tfoot td, .section-header {{
+    .report-header, .section-header, table.daily thead th,
+    table.daily tfoot td, .deploy-table th, .nr-table th {{
       -webkit-print-color-adjust: exact; print-color-adjust: exact;
     }}
   }}
@@ -280,58 +382,302 @@ def generate_report(input_path, output_path=None):
   <div class="date">{date_str}</div>
 </div>
 
+<!-- ── ROW 1: FUTURE DEPLOYMENTS + PINGDOM ── -->
+<div class="two-col">
+
+  <div class="section">
+    <div class="section-header">Future Deployments</div>
+    <div class="section-body" style="padding:0;">
+      <table class="deploy-table">
+        <thead>
+          <tr>
+            <th style="width:90px">Date</th>
+            <th style="width:110px">Deploy Ticket</th>
+            <th style="width:110px">JIRA Ticket</th>
+            <th>Ticket Name</th>
+          </tr>
+        </thead>
+        <tbody id="deploy-body">
+          <tr>
+            <td contenteditable="true" data-placeholder="Date"></td>
+            <td contenteditable="true" data-placeholder="CM-XXXX"></td>
+            <td contenteditable="true" data-placeholder="JIRA-XXXX"></td>
+            <td contenteditable="true" data-placeholder="Ticket name"></td>
+          </tr>
+          <tr>
+            <td contenteditable="true" data-placeholder="Date"></td>
+            <td contenteditable="true" data-placeholder="CM-XXXX"></td>
+            <td contenteditable="true" data-placeholder="JIRA-XXXX"></td>
+            <td contenteditable="true" data-placeholder="Ticket name"></td>
+          </tr>
+          <tr>
+            <td contenteditable="true" data-placeholder="Date"></td>
+            <td contenteditable="true" data-placeholder="CM-XXXX"></td>
+            <td contenteditable="true" data-placeholder="JIRA-XXXX"></td>
+            <td contenteditable="true" data-placeholder="Ticket name"></td>
+          </tr>
+          <tr>
+            <td contenteditable="true" data-placeholder="Date"></td>
+            <td contenteditable="true" data-placeholder="CM-XXXX"></td>
+            <td contenteditable="true" data-placeholder="JIRA-XXXX"></td>
+            <td contenteditable="true" data-placeholder="Ticket name"></td>
+          </tr>
+          <tr>
+            <td contenteditable="true" data-placeholder="Date"></td>
+            <td contenteditable="true" data-placeholder="CM-XXXX"></td>
+            <td contenteditable="true" data-placeholder="JIRA-XXXX"></td>
+            <td contenteditable="true" data-placeholder="Ticket name"></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-header">Pingdom: Web Services</div>
+    <div class="section-body">
+      <div style="font-weight:700;color:{C_NAVY};margin-bottom:8px;font-size:11.5px;">AMPANNWeb (Self-Service Portal)</div>
+      <div class="field-grid">
+        <div class="field-label">Date Range:</div>
+        <div contenteditable="true" data-placeholder="e.g. 04/17 – 04/30"></div>
+        <div class="field-label">Uptime (%):</div>
+        <div contenteditable="true" data-placeholder="e.g. 99.95%"></div>
+        <div class="field-label">Downtime (min):</div>
+        <div contenteditable="true" data-placeholder="e.g. 2"></div>
+        <div class="field-label">Avg Response (ms):</div>
+        <div contenteditable="true" data-placeholder="e.g. 481"></div>
+      </div>
+      <div style="font-weight:700;color:{C_NAVY};margin:12px 0 8px;font-size:11.5px;">ANNWebService (Core Backend / API)</div>
+      <div class="field-grid">
+        <div class="field-label">Date Range:</div>
+        <div contenteditable="true" data-placeholder="e.g. 04/17 – 04/30"></div>
+        <div class="field-label">Uptime (%):</div>
+        <div contenteditable="true" data-placeholder="e.g. 100.00%"></div>
+        <div class="field-label">Downtime (min):</div>
+        <div contenteditable="true" data-placeholder="e.g. 0"></div>
+        <div class="field-label">Avg Response (ms):</div>
+        <div contenteditable="true" data-placeholder="e.g. 312"></div>
+      </div>
+    </div>
+  </div>
+
+</div>
+
+<!-- ── NEW RELIC ── -->
+<div class="section">
+  <div class="section-header">New Relic: API Web Transaction Data (Top 5 by Volume)</div>
+  <div class="section-body" style="padding:0;">
+    <table class="nr-table">
+      <thead>
+        <tr>
+          <th>Transaction / API Call</th>
+          <th style="width:120px;text-align:right">Count</th>
+          <th style="width:180px;text-align:right">Avg Response Time (ms)</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr>
+          <td contenteditable="true" data-placeholder="e.g. dofilterAccountCertificate"></td>
+          <td contenteditable="true" data-placeholder="0" style="text-align:right"></td>
+          <td contenteditable="true" data-placeholder="0.0" style="text-align:right"></td>
+        </tr>
+        <tr>
+          <td contenteditable="true" data-placeholder="Transaction name"></td>
+          <td contenteditable="true" data-placeholder="0" style="text-align:right"></td>
+          <td contenteditable="true" data-placeholder="0.0" style="text-align:right"></td>
+        </tr>
+        <tr>
+          <td contenteditable="true" data-placeholder="Transaction name"></td>
+          <td contenteditable="true" data-placeholder="0" style="text-align:right"></td>
+          <td contenteditable="true" data-placeholder="0.0" style="text-align:right"></td>
+        </tr>
+        <tr>
+          <td contenteditable="true" data-placeholder="Transaction name"></td>
+          <td contenteditable="true" data-placeholder="0" style="text-align:right"></td>
+          <td contenteditable="true" data-placeholder="0.0" style="text-align:right"></td>
+        </tr>
+        <tr>
+          <td contenteditable="true" data-placeholder="Transaction name"></td>
+          <td contenteditable="true" data-placeholder="0" style="text-align:right"></td>
+          <td contenteditable="true" data-placeholder="0.0" style="text-align:right"></td>
+        </tr>
+      </tbody>
+    </table>
+    <p style="font-size:10px;color:#666;padding:6px 12px;">
+      ⚠ Note: <em>dofilterAccountCertificate</em> consistently shows a higher-than-average response time — this is expected behavior.
+    </p>
+  </div>
+</div>
+
+<!-- ── ENROLLMENTS ── -->
 <div class="section">
   <div class="section-header">Enrollments</div>
-  <div class="section-body"><img src="data:image/png;base64,{img_enrollments}"></div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_enroll}">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Within range (1,100 – 5,000)&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
 </div>
 
+<!-- ── TRANSACTIONS ── -->
 <div class="section">
   <div class="section-header">Transactions</div>
-  <div class="section-body"><img src="data:image/png;base64,{img_transactions}"></div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_txn}">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Loyalty Sales range: 11,352 – 19,175&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
 </div>
 
+<!-- ── RETURN TRANSACTIONS ── -->
 <div class="section">
   <div class="section-header">Return Transactions</div>
-  <div class="section-body"><img src="data:image/png;base64,{img_returns}"></div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_returns}">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Loyalty Returns: 13,640 – 15,030 &nbsp;|&nbsp;
+      Non-Loyalty Returns: 1,988 – 2,747&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
 </div>
 
+<!-- ── POINTS EARNED ── -->
 <div class="section">
-  <div class="section-header">Points Activity (Earned vs Redeemed)</div>
-  <div class="section-body"><img src="data:image/png;base64,{img_points}"></div>
+  <div class="section-header">Points Earned</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_pts_earned}">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Base: 4,327,566 – 8,357,520 &nbsp;|&nbsp;
+      Bonus: 6,672,329 – 10,075,431 &nbsp;|&nbsp;
+      Adjusted: 255,325 – 379,061&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
 </div>
 
+<!-- ── POINTS REDEEMED ── -->
 <div class="section">
-  <div class="section-header">Loyalty Certificates</div>
-  <div class="section-body"><img src="data:image/png;base64,{img_certs}"></div>
+  <div class="section-header">Points Redeemed</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_pts_redeemed}">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Base: -4,913,202 – -2,021,618 &nbsp;|&nbsp;
+      Bonus: -11,256,037 – -4,144,332 &nbsp;|&nbsp;
+      Adjusted: -364,761 – -219,975&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
 </div>
 
+<!-- ── POINTS EXPIRED ── -->
+<div class="section">
+  <div class="section-header">Points Expired</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_pts_expired}">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Base: -2,128,453 – -1,318,800 &nbsp;|&nbsp;
+      Bonus: -789,266 – -334,009 &nbsp;|&nbsp;
+      Adjusted: -16,083 – -2,830&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
+</div>
+
+<!-- ── POINTS FORFEITED ── -->
+<div class="section">
+  <div class="section-header">Points Forfeited</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_pts_forfeited}">
+    <p class="threshold-note" style="color:#aaa;">
+      Note: ANN forfeiture includes Returns, Account Closures &amp; Data Cleanups.
+    </p>
+  </div>
+</div>
+
+<!-- ── CERTIFICATES ISSUED ── -->
+<div class="section">
+  <div class="section-header">Loyalty Certificates Issued</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_certs_issued}">
+    <img src="data:image/png;base64,{img_certs_issued_amt}" style="margin-top:8px;">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Issued Amount range: $42,901 – $109,849&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
+</div>
+
+<!-- ── CERTIFICATES REDEEMED ── -->
+<div class="section">
+  <div class="section-header">Loyalty Certificates Redeemed</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_certs_redeemed}">
+    <img src="data:image/png;base64,{img_certs_redeemed_amt}" style="margin-top:8px;">
+    <p class="threshold-note">
+      <span class="dot-green"></span>Count range: 4,030 – 10,102 &nbsp;|&nbsp;
+      Amount range: $42,532 – $109,137&nbsp;&nbsp;
+      <span class="dot-red"></span>Outside range
+    </p>
+  </div>
+</div>
+
+<!-- ── TIER UPGRADES ── -->
 <div class="section">
   <div class="section-header">Tier Upgrades</div>
-  <div class="section-body"><img src="data:image/png;base64,{img_tier}"></div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_tier_up}">
+  </div>
 </div>
 
+<!-- ── TIER DOWNGRADES ── -->
+<div class="section">
+  <div class="section-header">Tier Downgrades</div>
+  <div class="section-body">
+    <img src="data:image/png;base64,{img_tier_down}">
+    <p class="threshold-note" style="color:#aaa;">
+      Note: Tier downgrades are tracked monthly. Spikes typically occur at start of month/quarter.
+    </p>
+  </div>
+</div>
+
+<!-- ── DAILY BREAKDOWN TABLE ── -->
 <div class="section">
   <div class="section-header">Daily Breakdown</div>
   <div class="section-body" style="padding:0;">
-    <table>
+    <div class="table-wrap">
+    <table class="daily">
       <thead>
+        <tr class="group-header">
+          <th rowspan="2" style="text-align:left">Date</th>
+          <th rowspan="2">Enrollments</th>
+          <th colspan="2">Loyalty Transactions</th>
+          <th colspan="2">Non-Loyalty Transactions</th>
+          <th colspan="3">Points Earned</th>
+          <th colspan="3">Points Redeemed</th>
+          <th colspan="3">Points Expired</th>
+          <th colspan="3">Points Forfeited</th>
+          <th colspan="2">Certs Issued</th>
+          <th colspan="2">Certs Redeemed</th>
+          <th rowspan="2">Tier Up</th>
+          <th rowspan="2">Tier Down</th>
+        </tr>
         <tr>
-          <th>Date</th>
-          <th>Enroll</th>
-          <th>Loy Sales</th>
-          <th>Loy Returns</th>
-          <th>Non-Loy Sales</th>
-          <th>Non-Loy Returns</th>
-          <th>Pts Earned</th>
-          <th>Pts Redeemed</th>
-          <th>Certs Issued</th>
-          <th>Issued $</th>
-          <th>Certs Redeemed</th>
-          <th>Redeemed $</th>
-          <th>Tier Up</th>
+          <th>Sales</th><th>Returns</th>
+          <th>Sales</th><th>Returns</th>
+          <th>Base</th><th>Bonus</th><th>Adj</th>
+          <th>Base</th><th>Bonus</th><th>Adj</th>
+          <th>Base</th><th>Bonus</th><th>Adj</th>
+          <th>Base</th><th>Bonus</th><th>Adj</th>
+          <th>Count</th><th>Amount</th>
+          <th>Count</th><th>Amount</th>
         </tr>
       </thead>
-      <tbody>{rows_html}</tbody>
+      <tbody>{rows}</tbody>
       <tfoot>
         <tr>
           <td>TOTAL</td>
@@ -340,18 +686,39 @@ def generate_report(input_path, output_path=None):
           <td>{fmt_int(t['Loyalty Return Transactions'])}</td>
           <td>{fmt_int(t['Non-Loyalty Sale Transactions'])}</td>
           <td>{fmt_int(t['Non-Loyalty Return Transactions'])}</td>
-          <td>{fmt_int(t['Base Points Earned'] + t['Bonus Points Earned'] + t['Adjusted Points Earned'])}</td>
-          <td>{fmt_int(-(t['Base Points Redeemed'] + t['Bonus Points Redeemed'] + t['Adjusted Points Redeemed']))}</td>
+          <td>{fmt_int(t['Base Points Earned'])}</td>
+          <td>{fmt_int(t['Bonus Points Earned'])}</td>
+          <td>{fmt_int(t['Adjusted Points Earned'])}</td>
+          <td>{fmt_int(t['Base Points Redeemed'])}</td>
+          <td>{fmt_int(t['Bonus Points Redeemed'])}</td>
+          <td>{fmt_int(t['Adjusted Points Redeemed'])}</td>
+          <td>{fmt_int(t['Base Points Expired'])}</td>
+          <td>{fmt_int(t['Bonus Points Expired'])}</td>
+          <td>{fmt_int(t['Adjusted Points Expired'])}</td>
+          <td>{fmt_int(t['Base Points Forfeited'])}</td>
+          <td>{fmt_int(t['Bonus Points Forfeited'])}</td>
+          <td>{fmt_int(t['Adjusted Points Forfeited'])}</td>
           <td>{fmt_int(t['Loyalty Certificates Issued'])}</td>
           <td>{fmt_currency(t['Loyalty Certificates Issued Amount'])}</td>
           <td>{fmt_int(t['Loyalty Certificates Redeemed'])}</td>
           <td>{fmt_currency(t['Loyalty Certificates Redeemed Amount'])}</td>
           <td>{fmt_int(t['Tier Upgrades'])}</td>
+          <td>{fmt_int(t['Tier Downgrades'])}</td>
         </tr>
       </tfoot>
     </table>
+    </div>
   </div>
 </div>
+
+<script>
+// Persist editable field content in localStorage so it survives page refresh
+document.querySelectorAll('[contenteditable]').forEach((el, i) => {{
+  const key = 'ann_report_field_' + i;
+  if (localStorage.getItem(key)) el.innerHTML = localStorage.getItem(key);
+  el.addEventListener('input', () => localStorage.setItem(key, el.innerHTML));
+}});
+</script>
 
 </body>
 </html>"""
@@ -362,7 +729,6 @@ def generate_report(input_path, output_path=None):
 
     with open(output_path, "w", encoding="utf-8") as f:
         f.write(html)
-
     print(f"Report generated: {output_path}")
     return output_path
 
