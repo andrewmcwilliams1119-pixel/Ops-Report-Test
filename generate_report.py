@@ -16,14 +16,21 @@ import os
 
 REPORT_TITLE = "ANN Daily Operational Report"
 
-# Consistent palette
-C_BLUE      = "#1f4e79"
-C_LIGHTBLUE = "#7fb6ec"
-C_GREEN     = "#5cb85c"
-C_RED       = "#e25c5c"
-C_ORANGE    = "#f0ad4e"
-C_PURPLE    = "#9b6dd0"
-C_FILL      = "#4a90e2"
+# Kobie brand palette
+C_MIDNIGHT  = "#051C2C"
+C_NAVY      = "#304F7F"
+C_LIGHTBLUE = "#5B88EC"
+C_CORAL     = "#FD7E4F"
+C_PURPLE    = "#5401C8"
+C_GREY      = "#EBE9FE"
+C_WHITE     = "#FFFFFF"
+
+# Chart alias
+C_BLUE      = C_NAVY
+C_GREEN     = C_NAVY
+C_RED       = C_CORAL
+C_ORANGE    = C_LIGHTBLUE
+C_FILL      = C_LIGHTBLUE
 
 
 def fmt_int(n):
@@ -123,28 +130,28 @@ def generate_report(input_path, output_path=None):
 
     img_transactions = make_line_chart(
         labels,
-        [("Loyalty Sale Transactions",     loy_sales,    C_BLUE,      "-"),
+        [("Loyalty Sale Transactions",     loy_sales,    C_NAVY,      "-"),
          ("Non-Loyalty Sale Transactions", nonloy_sales, C_LIGHTBLUE, "-")],
         with_labels=False)
 
     img_returns = make_line_chart(
         labels,
-        [("Loyalty Return Transactions",     loy_returns,    C_RED,    "-"),
-         ("Non-Loyalty Return Transactions", nonloy_returns, C_ORANGE, "-")],
+        [("Loyalty Return Transactions",     loy_returns,    C_CORAL,  "-"),
+         ("Non-Loyalty Return Transactions", nonloy_returns, C_PURPLE, "-")],
         with_labels=False)
 
     img_points = make_line_chart(
         labels,
-        [("Base Points Earned",    base_earned,    C_GREEN,  "-"),
-         ("Bonus Points Earned",   bonus_earned,   C_BLUE,   "-"),
-         ("Base Points Redeemed",  base_redeemed,  C_RED,    "--"),
-         ("Bonus Points Redeemed", bonus_redeemed, C_PURPLE, "--")],
+        [("Base Points Earned",    base_earned,    C_NAVY,      "-"),
+         ("Bonus Points Earned",   bonus_earned,   C_LIGHTBLUE, "-"),
+         ("Base Points Redeemed",  base_redeemed,  C_CORAL,     "--"),
+         ("Bonus Points Redeemed", bonus_redeemed, C_PURPLE,    "--")],
         height=2.6, with_labels=False)
 
     img_certs = make_line_chart(
         labels,
-        [("Certificates Issued",   certs_issued,   C_GREEN, "-"),
-         ("Certificates Redeemed", certs_redeemed, C_RED,   "-")],
+        [("Certificates Issued",   certs_issued,   C_NAVY,  "-"),
+         ("Certificates Redeemed", certs_redeemed, C_CORAL, "-")],
         with_labels=False)
 
     img_tier = make_line_chart(
@@ -187,7 +194,7 @@ def generate_report(input_path, output_path=None):
     padding: 0 24px 40px;
   }}
   .report-header {{
-    background: #2d2d2d;
+    background: #051C2C;
     padding: 14px 0 10px;
     text-align: center;
     margin: 0 -24px 18px;
@@ -196,9 +203,10 @@ def generate_report(input_path, output_path=None):
     color: #ffffff;
     font-size: 20px;
     font-weight: 700;
+    letter-spacing: 0.5px;
   }}
   .report-header .date {{
-    color: #4a90e2;
+    color: #FD7E4F;
     font-style: italic;
     font-size: 13px;
     margin-top: 2px;
@@ -209,7 +217,7 @@ def generate_report(input_path, output_path=None):
     background: #ffffff;
   }}
   .section-header {{
-    background: #4a4a4a;
+    background: #304F7F;
     color: #ffffff;
     font-weight: 700;
     font-size: 12px;
@@ -231,7 +239,7 @@ def generate_report(input_path, output_path=None):
     font-size: 11px;
   }}
   thead th {{
-    background: #4a4a4a;
+    background: #304F7F;
     color: #ffffff;
     text-align: right;
     padding: 6px 8px;
@@ -246,9 +254,9 @@ def generate_report(input_path, output_path=None):
     white-space: nowrap;
   }}
   tbody td:first-child {{ text-align: left; font-weight: 600; }}
-  tbody tr:nth-child(even) {{ background: #f7f7f7; }}
+  tbody tr:nth-child(even) {{ background: #EBE9FE; }}
   tfoot td {{
-    background: #2d2d2d;
+    background: #051C2C;
     color: #ffffff;
     padding: 7px 8px;
     text-align: right;
