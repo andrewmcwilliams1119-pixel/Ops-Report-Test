@@ -5,6 +5,7 @@ Usage: python generate_report.py <input_file.csv|.xlsx> [output.html]
 """
 
 import pandas as pd
+import numpy as np
 import matplotlib
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
@@ -65,54 +66,116 @@ def fig_to_b64(fig):
     plt.close(fig)
     return base64.b64encode(buf.getvalue()).decode("ascii")
 
+# Distinct band colors for overlapping thresholds (light → darker green)
+BAND_COLORS = ["#c8f0d8", "#8fd4b0", "#56b88a", "#2e8b6a"]
+
+def fmt_label(n):
+    """Abbreviated label for chart annotations."""
+    a = abs(n)
+    if a >= 1_000_000: return f"{n/1_000_000:.1f}M"
+    if a >= 1_000:     return f"{n/1_000:.1f}K"
+    return f"{int(n):,}"
+
 def style_ax(ax, labels, n_series=1):
     ax.set_facecolor("white")
     for spine in ["top", "right"]: ax.spines[spine].set_visible(False)
     for spine in ["left", "bottom"]: ax.spines[spine].set_color("#cccccc")
     ax.tick_params(axis="both", labelsize=8, colors="#444")
-    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: f"{int(x):,}"))
+    ax.yaxis.set_major_formatter(FuncFormatter(lambda x, _: fmt_label(x)))
     ax.grid(axis="y", color="#eeeeee", linewidth=0.8, zorder=0)
     ax.set_xticks(range(len(labels)))
     ax.set_xticklabels(labels, rotation=0, fontsize=7.5)
     ax.set_xlim(-0.5, len(labels) - 0.5)
-    ax.margins(y=0.20 if n_series > 1 else 0.15)
+    ax.margins(y=0.25 if n_series > 1 else 0.20)
     ax.set_axisbelow(True)
 
 def make_chart(labels, series, fill_first=False, height=2.3):
     """
     series: list of (label, values, color, linestyle, low, high)
-            low/high may be None for no threshold
+    Threshold bands use distinct green shades per series to avoid overlap confusion.
+    Value labels shown on every data point.
     """
     fig, ax = plt.subplots(figsize=(10, height))
     x = list(range(len(labels)))
+    band_idx = 0
 
     for label, values, color, ls, low, high in series:
         ax.plot(x, values, label=label, color=color, linestyle=ls,
-                linewidth=2, zorder=3, clip_on=True,
-                marker=None)  # markers drawn per-point below
+                linewidth=2, zorder=3, clip_on=True, marker=None)
 
-        # Threshold band
+        # Threshold band — unique shade per series
         if low is not None and high is not None:
             lo, hi = min(low, high), max(low, high)
-            ax.axhspan(lo, hi, alpha=0.07, color="#38a169", zorder=1)
-            ax.axhline(lo, color="#38a169", linewidth=0.8, linestyle="--", alpha=0.6, zorder=2)
-            ax.axhline(hi, color="#38a169", linewidth=0.8, linestyle="--", alpha=0.6, zorder=2)
+            bc = BAND_COLORS[band_idx % len(BAND_COLORS)]
+            ax.axhspan(lo, hi, alpha=0.35, color=bc, zorder=1)
+            ax.axhline(lo, color=bc, linewidth=1.0, linestyle="--", alpha=0.9, zorder=2)
+            ax.axhline(hi, color=bc, linewidth=1.0, linestyle="--", alpha=0.9, zorder=2)
+            band_idx += 1
 
-        # Per-point markers — red if outside range
+        # Per-point markers + value labels
         for xi, yi in zip(x, values):
             outside = (low is not None and high is not None and
                        not (min(low, high) <= yi <= max(low, high)))
             mc = "#e53e3e" if outside else color
             ax.plot(xi, yi, "o", color=mc, markersize=4.5, zorder=4, clip_on=True)
+            offset = 7 if yi >= 0 else -10
+            ax.annotate(fmt_label(yi), (xi, yi),
+                        textcoords="offset points", xytext=(0, offset),
+                        ha="center", fontsize=6.5, color=mc, zorder=5)
 
     if fill_first:
-        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.15, zorder=2)
+        ax.fill_between(x, series[0][1], color=series[0][2], alpha=0.12, zorder=2)
 
     style_ax(ax, labels, n_series=len(series))
     if len(series) > 1:
         ax.legend(loc="upper right", frameon=True, framealpha=0.92,
                   edgecolor="#dddddd", fontsize=8, ncol=min(len(series), 4))
-    fig.tight_layout(pad=0.4)
+    fig.tight_layout(pad=0.5)
+    return fig_to_b64(fig)
+
+
+def make_bar_chart(labels, series, height=2.8):
+    """
+    Grouped bar chart — Kobie colors.
+    series: list of (label, values, color, _, low, high)
+    Value labels on every bar. Threshold lines drawn if provided.
+    """
+    fig, ax = plt.subplots(figsize=(10, height))
+    x = np.arange(len(labels))
+    n = len(series)
+    width = 0.75 / n
+    band_idx = 0
+
+    for i, (label, values, color, _, low, high) in enumerate(series):
+        offset = (i - n / 2 + 0.5) * width
+        bars = ax.bar(x + offset, values, width * 0.92, label=label,
+                      color=color, alpha=0.85, zorder=3)
+
+        # Value labels on bars
+        for bar, val in zip(bars, values):
+            bh = bar.get_height()
+            y_pos = bh + (abs(bh) * 0.03) if bh >= 0 else bh - (abs(bh) * 0.03)
+            va = "bottom" if bh >= 0 else "top"
+            ax.text(bar.get_x() + bar.get_width() / 2, y_pos,
+                    fmt_label(val), ha="center", va=va,
+                    fontsize=6, color="#333333", zorder=5)
+
+        # Threshold lines
+        if low is not None and high is not None:
+            lo, hi = min(low, high), max(low, high)
+            bc = BAND_COLORS[band_idx % len(BAND_COLORS)]
+            ax.axhline(lo, color=bc, linewidth=1.0, linestyle="--", alpha=0.9, zorder=2)
+            ax.axhline(hi, color=bc, linewidth=1.0, linestyle="--", alpha=0.9, zorder=2)
+            band_idx += 1
+
+    ax.axhline(0, color="#aaaaaa", linewidth=0.8, zorder=2)
+    style_ax(ax, labels, n_series=n)
+    ax.set_xticks(x)
+    ax.set_xticklabels(labels, fontsize=7.5)
+    ax.set_xlim(-0.5, len(labels) - 0.5)
+    ax.legend(loc="upper right", frameon=True, framealpha=0.92,
+              edgecolor="#dddddd", fontsize=8, ncol=min(n, 4))
+    fig.tight_layout(pad=0.5)
     return fig_to_b64(fig)
 
 
@@ -142,29 +205,29 @@ def generate_report(input_path, output_path=None):
         ("Non-Loyalty Return Transactions", col("Non-Loyalty Return Transactions"), C_PURPLE, "-", *thr("Non-Loyalty Return Transactions")),
     ])
 
-    img_pts_earned = make_chart(labels, [
-        ("Base Points Earned",     col("Base Points Earned"),     C_NAVY,      "-",  *thr("Base Points Earned")),
-        ("Bonus Points Earned",    col("Bonus Points Earned"),    C_LIGHTBLUE, "-",  *thr("Bonus Points Earned")),
-        ("Adjusted Points Earned", col("Adjusted Points Earned"), C_CORAL,     "--", *thr("Adjusted Points Earned")),
-    ], height=2.6)
+    img_pts_earned = make_bar_chart(labels, [
+        ("Base Points Earned",     col("Base Points Earned"),     C_NAVY,      "-", *thr("Base Points Earned")),
+        ("Bonus Points Earned",    col("Bonus Points Earned"),    C_LIGHTBLUE, "-", *thr("Bonus Points Earned")),
+        ("Adjusted Points Earned", col("Adjusted Points Earned"), C_CORAL,     "-", *thr("Adjusted Points Earned")),
+    ], height=2.8)
 
-    img_pts_redeemed = make_chart(labels, [
-        ("Base Points Redeemed",     col("Base Points Redeemed"),     C_NAVY,      "-",  *thr("Base Points Redeemed")),
-        ("Bonus Points Redeemed",    col("Bonus Points Redeemed"),    C_LIGHTBLUE, "-",  *thr("Bonus Points Redeemed")),
-        ("Adjusted Points Redeemed", col("Adjusted Points Redeemed"), C_CORAL,     "--", *thr("Adjusted Points Redeemed")),
-    ], height=2.6)
+    img_pts_redeemed = make_bar_chart(labels, [
+        ("Base Points Redeemed",     col("Base Points Redeemed"),     C_NAVY,      "-", *thr("Base Points Redeemed")),
+        ("Bonus Points Redeemed",    col("Bonus Points Redeemed"),    C_LIGHTBLUE, "-", *thr("Bonus Points Redeemed")),
+        ("Adjusted Points Redeemed", col("Adjusted Points Redeemed"), C_CORAL,     "-", *thr("Adjusted Points Redeemed")),
+    ], height=2.8)
 
-    img_pts_expired = make_chart(labels, [
-        ("Base Points Expired",     col("Base Points Expired"),     C_NAVY,      "-",  *thr("Base Points Expired")),
-        ("Bonus Points Expired",    col("Bonus Points Expired"),    C_LIGHTBLUE, "-",  *thr("Bonus Points Expired")),
-        ("Adjusted Points Expired", col("Adjusted Points Expired"), C_CORAL,     "--", *thr("Adjusted Points Expired")),
-    ], height=2.6)
+    img_pts_expired = make_bar_chart(labels, [
+        ("Base Points Expired",     col("Base Points Expired"),     C_NAVY,      "-", *thr("Base Points Expired")),
+        ("Bonus Points Expired",    col("Bonus Points Expired"),    C_LIGHTBLUE, "-", *thr("Bonus Points Expired")),
+        ("Adjusted Points Expired", col("Adjusted Points Expired"), C_CORAL,     "-", *thr("Adjusted Points Expired")),
+    ], height=2.8)
 
-    img_pts_forfeited = make_chart(labels, [
-        ("Base Points Forfeited",     col("Base Points Forfeited"),     C_NAVY,      "-",  None, None),
-        ("Bonus Points Forfeited",    col("Bonus Points Forfeited"),    C_LIGHTBLUE, "-",  None, None),
-        ("Adjusted Points Forfeited", col("Adjusted Points Forfeited"), C_CORAL,     "--", None, None),
-    ], height=2.6)
+    img_pts_forfeited = make_bar_chart(labels, [
+        ("Base Points Forfeited",     col("Base Points Forfeited"),     C_NAVY,      "-", None, None),
+        ("Bonus Points Forfeited",    col("Bonus Points Forfeited"),    C_LIGHTBLUE, "-", None, None),
+        ("Adjusted Points Forfeited", col("Adjusted Points Forfeited"), C_CORAL,     "-", None, None),
+    ], height=2.8)
 
     img_certs_issued = make_chart(labels, [
         ("Certificates Issued (Count)", col("Loyalty Certificates Issued"), C_NAVY, "-", None, None),
