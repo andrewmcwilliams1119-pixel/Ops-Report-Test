@@ -25,7 +25,7 @@ C_GREY      = "#EBE9FE"
 # Threshold ranges (low, high) — values outside turn red
 THRESHOLDS = {
     "Enrollments":                        (1_100,       5_000),
-    "Loyalty Sale Transactions":          (11_352,      19_175),
+    "Loyalty Sale Transactions":          (46_386,      64_807),
     "Loyalty Return Transactions":        (13_640,      15_030),
     "Non-Loyalty Return Transactions":    (1_988,       2_747),
     "Base Points Earned":                 (4_327_566,   8_357_520),
@@ -593,7 +593,7 @@ def generate_report(input_path, output_path=None):
   <div class="section-body">
     <img src="data:image/png;base64,{img_txn}">
     <p class="threshold-note">
-      <span class="dot-green"></span>Loyalty Sales range: 11,352 – 19,175&nbsp;&nbsp;
+      <span class="dot-green"></span>Loyalty Sales range: 46,386 – 64,807&nbsp;&nbsp;
       <span class="dot-red"></span>Outside range
     </p>
   </div>
