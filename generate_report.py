@@ -52,7 +52,10 @@ def fmt_currency(n):
 
 def load_data(path):
     ext = os.path.splitext(path)[1].lower()
-    df = pd.read_excel(path) if ext in (".xlsx", ".xls") else pd.read_csv(path)
+    if ext in (".xlsx", ".xls"):
+        df = pd.read_excel(path)
+    else:
+        df = pd.read_csv(path, sep=None, engine="python")  # auto-detect delimiter
     df["Report Date"] = pd.to_datetime(df["Report Date"])
     return df.sort_values("Report Date").reset_index(drop=True)
 
