@@ -24,7 +24,7 @@ C_GREY      = "#EBE9FE"
 # Threshold ranges (low, high) — values outside turn red
 THRESHOLDS = {
     "Enrollments":                        (1_100,       5_000),
-    "Loyalty Sale Transactions":          (11_352,      19_175),
+    "Loyalty Sale Transactions":          (10_400,      17_500),
     "Loyalty Return Transactions":        (13_640,      15_030),
     "Non-Loyalty Return Transactions":    (1_988,       2_747),
     "Base Points Earned":                 (4_327_566,   8_357_520),
