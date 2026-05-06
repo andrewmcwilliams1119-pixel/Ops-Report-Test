@@ -24,7 +24,7 @@ C_GREY      = "#EBE9FE"
 # Threshold ranges (low, high) — values outside turn red
 THRESHOLDS = {
     "Enrollments":                        (1_100,       5_000),
-    "Loyalty Sale Transactions":          (10_400,      17_500),
+    "Loyalty Sale Transactions":          (11_352,      19_175),
     "Loyalty Return Transactions":        (13_640,      15_030),
     "Non-Loyalty Return Transactions":    (1_988,       2_747),
     "Base Points Earned":                 (4_327_566,   8_357_520),
@@ -37,7 +37,7 @@ THRESHOLDS = {
     "Bonus Points Expired":               (-789_266,    -334_009),
     "Adjusted Points Expired":            (-16_083,     -2_830),
     "Loyalty Certificates Issued Amount": (42_901.14,   109_848.69),
-    "Loyalty Certificates Redeemed":      (4_030,       10_102),
+    "Loyalty Certificates Redeemed":      (10_400,      17_500),
     "Loyalty Certificates Redeemed Amount": (42_532.43, 109_137.48),
 }
 
